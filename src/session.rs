@@ -60,7 +60,6 @@ pub fn cookie_domain_for_host(host: &str, fallback: &str) -> String {
 /// bff.dash.ops.sys.sentin8.local
 /// → .dash.ops.sys.sentin8.local
 /// ```
-///
 /// A platform-root fallback (`Domain=.{sentin8_domain}`) is prohibited:
 /// it makes every BFF in the platform share one cookie jar, which is
 /// exactly the cross-app replay defect. When the hostname has fewer than

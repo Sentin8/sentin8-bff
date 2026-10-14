@@ -597,6 +597,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
 /// Resolve the effective access token to attach to the upstream request.
 ///
 ///+ — Delegation Gateway model. If the session's access token
+///
 /// is a platform-admin token and the request targets a specific env, BFF
 /// requests a cert-bound delegated token from Auth's
 /// `POST /delegate/access-token`. The delegated token is cached in Valkey

@@ -629,7 +629,6 @@ pub async fn delegate_send_link(
 /// PUT /delegate/scim/users/:id → Auth PUT /scim/v2/Users/:id
 /// PATCH /delegate/scim/users/:id → Auth PATCH /scim/v2/Users/:id
 /// DELETE /delegate/scim/users/:id → Auth DELETE /scim/v2/Users/:id
-///
 /// BFF injects the M2M token and forwards the request body/query params
 /// as-is. The response (SCIM JSON) is returned directly to the caller.
 //

@@ -815,13 +815,17 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
 /// (`app_instances.group_gate`, resolved via Sys auth-mode):
 ///
 /// - `strict` (default, every app instance): the user must be a member of
+///
 /// the instance's `sentin8:app:{instance_id}` group in the token's
 /// auth env — fail-closed. Customer apps never see the gate (users are
 /// auto-added at sign-up); staff apps enforce explicit membership (the
+///
 /// "Ben must not silently become a teller" rule).
 /// - `self_service`: authentication itself is the authorization — any user
+///
 /// who completed the OAuth flow (and passed the D3 auth-env check in the
 /// caller) obtains a session. Used for first-party platform surfaces
+///
 /// (platform Dash) whose self-service users create their first org
 /// before any group membership can exist.
 ///
@@ -1431,6 +1435,7 @@ pub async fn auth_session(
 /// as a path parameter and the request body as JSON. BFF:
 /// 1. Validates the session
 /// 2. Looks up the action in `sentin8_service_actions` (registered by
+///
 /// `sentin8-cli vertical enroll`) to get the target URL, method, and scope
 /// 3. Forwards the request body + access token to the registered service
 /// 4. Returns the response

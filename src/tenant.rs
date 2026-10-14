@@ -251,7 +251,9 @@ pub async fn resolve_org_id_from_env_id(pool: &sqlx::PgPool, env_id: &str) -> Op
 /// name to the registered identity by trying, in order:
 /// 1. `sentin8:{service}` — the platform convention (auth → `sentin8:auth`).
 /// 2. The runtime registry (`sys.vertical_services`) — exact identity
+///
 /// match or bare-name suffix match (`bank8:ledger` when `ledger` is asked).
+///
 /// Falls back to the legacy dash form (`sentin8-{service}`) when the
 /// registry is unreachable (dev bootstrapping).
 pub async fn resolve_service_identity(pool: &sqlx::PgPool, service: &str) -> String {
