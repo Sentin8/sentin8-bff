@@ -1,0 +1,213 @@
+# SPDX-FileCopyrightText: Copyright Logically Magic Inc. <hello@logicallymagic.com>
+# SPDX-FileCopyrightText: Copyright Hamid Jahanzad <Hamid@Jahanzad.com>
+# SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.0.3
+info:
+  title: Sentin8:BFF API
+  version: 0.1.0
+  description: |
+    Sentin8 Sentin8:BFF — Backend for Frontend service.
+    Server-side OAuth token guardian with DCR, session management, and proxy.
+  license:
+    name: MIT
+
+paths:
+  /bff/auth/login:
+    get:
+      summary: Initiate OAuth login
+      description: Redirects to Sentin8:Auth /oauth/authorize with PKCE
+      parameters:
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '302':
+          description: Redirect to Sentin8:Auth authorize endpoint
+          headers:
+            Location:
+              schema:
+                type: string
+
+  /bff/auth/callback:
+    get:
+      summary: OAuth callback
+      description: Handles the authorization code callback from Sentin8:Auth
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to app with session cookie set
+
+  /bff/auth/session:
+    get:
+      summary: Get current session
+      description: Returns session metadata (never includes tokens)
+      responses:
+        '200':
+          description: Session metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionMetadata'
+        '401':
+          description: No active session
+
+  /bff/auth/logout:
+    post:
+      summary: Logout
+      description: Destroys the Sentin8:BFF session and clears cookies
+      responses:
+        '200':
+          description: Session destroyed
+
+  /bff/auth/refresh:
+    post:
+      summary: Refresh access token
+      description: Uses the stored refresh token to get a new access token
+      responses:
+        '200':
+          description: Token refreshed
+        '401':
+          description: Refresh token invalid or expired
+
+  /bff/dcr/register:
+    post:
+      summary: DCR registration
+      description: Registers an OAuth client with Sentin8:Auth via DCR (RFC 7591)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DcrRegisterRequest'
+      responses:
+        '201':
+          description: Client registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DcrRegisterResponse'
+
+  /bff/proxy/{app_path}:
+    get:
+      summary: Proxy GET to backend
+      description: Proxies authenticated requests to the Sentin8:App backend
+      parameters:
+        - name: app_path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proxied response
+        '401':
+          description: Not authenticated
+    post:
+      summary: Proxy POST to backend
+      parameters:
+        - name: app_path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Proxied response
+
+components:
+  schemas:
+    SessionMetadata:
+      type: object
+      required:
+        - user_id
+        - org_id
+        - env_id
+        - scopes
+        - csrf_token
+        - expires_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        org_id:
+          type: string
+          format: uuid
+        env_id:
+          type: string
+          format: uuid
+        scopes:
+          type: array
+          items:
+            type: string
+        application_id:
+          type: string
+          format: uuid
+        csrf_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    DcrRegisterRequest:
+      type: object
+      required:
+        - sentin8_auth_domain
+        - client_name
+        - redirect_uri
+        - scopes
+      properties:
+        sentin8_auth_domain:
+          type: string
+          description: Sentin8:Auth issuer domain (e.g. sentin8-auth.ops.sys.sentin8.local)
+        client_name:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        scopes:
+          type: array
+          items:
+            type: string
+
+    DcrRegisterResponse:
+      type: object
+      required:
+        - client_id
+        - registration_access_token
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        registration_access_token:
+          type: string
+        registration_client_uri:
+          type: string
+        client_id_issued_at:
+          type: integer
+        client_secret_expires_at:
+          type: integer
