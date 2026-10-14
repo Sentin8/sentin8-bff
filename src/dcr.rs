@@ -190,7 +190,7 @@ impl DcrRegistry {
     pub fn new(pool: PgPool, encryption_key: &[u8; 32]) -> Self {
         Self {
             pool,
-            encryption_key: encryption_key.clone(),
+            encryption_key: *encryption_key,
         }
     }
 

@@ -171,7 +171,6 @@ pub fn build_tagger(config: ServerTaggingConfig) -> Box<dyn ServerTagger> {
 mod tests {
     use super::*;
     use sentin8_stat_sdk::client::Client as StatClient;
-    use std::sync::Arc;
 
     /// Install the Graviola PQ crypto provider once — reqwest panics with
     /// "No provider set" when a client is built without one.

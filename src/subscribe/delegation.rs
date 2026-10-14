@@ -143,10 +143,11 @@ pub async fn start_delegation_poll(
 
             // Cache the delegation token in Valkey.
             if !delegation_token.is_empty() {
-                let valkey_client = match sentin8::middleware::valkey_client(&valkey_url, "sentin8:bff").await {
-                    Ok(c) => c,
-                    Err(_) => return,
-                };
+                let valkey_client =
+                    match sentin8::middleware::valkey_client(&valkey_url, "sentin8:bff").await {
+                        Ok(c) => c,
+                        Err(_) => return,
+                    };
                 let conn = match Ok::<_, glide::GlideError>(valkey_client.clone()) {
                     Ok(c) => c,
                     Err(_) => return,

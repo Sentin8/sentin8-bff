@@ -10,7 +10,6 @@
 
 use std::time::Duration;
 
-
 use super::sse::sub_map;
 
 /// Spawn a background task that subscribes to `stat:rollups:minute` on Valkey
@@ -25,7 +24,9 @@ pub fn spawn(valkey_url: String) {
     tokio::spawn(async move {
         // GLIDE pubsub: a pubsub-enabled client; connect-time
         // subscriptions survive reconnects (group DESIGN.md §3.1).
-        let client = match sentin8::middleware::valkey_client_pubsub(&valkey_url, "sentin8:bff").await {
+        let client = match sentin8::middleware::valkey_client_pubsub(&valkey_url, "sentin8:bff")
+            .await
+        {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!(error = %e, "bff: failed to open Valkey client for stat rollups");
@@ -47,7 +48,9 @@ pub fn spawn(valkey_url: String) {
                 let payload: String = match client.get_pubsub_message().await {
                     Ok(m) => String::from_utf8_lossy(&m.payload).into_owned(),
                     Err(_) => {
-                        tracing::warn!("bff: stat rollups Valkey channel ended; reconnecting in 3s");
+                        tracing::warn!(
+                            "bff: stat rollups Valkey channel ended; reconnecting in 3s"
+                        );
                         tokio::time::sleep(Duration::from_secs(3)).await;
                         break;
                     }
@@ -71,7 +74,7 @@ pub fn spawn(valkey_url: String) {
                 // Push to all active sessions subscribed to sentin8:stat.traffic.snapshot.
                 let map = sub_map();
                 let guard = map.read().await;
-                for (_session_id, state) in guard.iter() {
+                for state in guard.values() {
                     let subs = state.subscriptions.read().await;
                     if subs.contains("sentin8:stat:traffic:snapshot") {
                         let _ = state.tx.send(event.clone());

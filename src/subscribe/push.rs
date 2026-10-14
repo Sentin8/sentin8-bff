@@ -265,7 +265,6 @@ async fn drain_and_push(
     Ok(pushed)
 }
 
-
 /// Process-global pool handle for the fan-out tap (set at boot; the SSE
 /// `push_event` spawns best-effort enqueues through it).
 static POOL: std::sync::OnceLock<PgPool> = std::sync::OnceLock::new();

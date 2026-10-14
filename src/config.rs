@@ -63,7 +63,7 @@ impl Bff8Config {
             valkey_url: env::var("SENTIN8_BFF_VALKEY_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(|| sentin8::config::service_valkey_url()),
+                .unwrap_or_else(sentin8::config::service_valkey_url),
             encryption_key: env::var("SENTIN8_BFF_ENCRYPTION_KEY")
                 .unwrap_or_else(|_| "change-me-32-bytes-of-random-key-material".into()),
             // Retained OLD passphrases (comma-separated) — decrypt-only

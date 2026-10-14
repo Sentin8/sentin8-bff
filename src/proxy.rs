@@ -886,7 +886,7 @@ pub(crate) async fn get_sentin8_bff_m2m_token(
                     config
                         .m2m_ca_cert_path
                         .clone()
-                        .unwrap_or_else(|| sentin8::auth::m2m::platform_ca_path()),
+                        .unwrap_or_else(sentin8::auth::m2m::platform_ca_path),
                 )
             } else {
                 (cert_path, key_path, ca_path)

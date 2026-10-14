@@ -195,6 +195,74 @@ fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
         .collect()
 }
 
+/// Build the operational ring from the config: retained (older)
+/// passphrases first, the current one last — `KeyRing::from_passphrases`
+/// treats the last entry as current.
+pub fn ring_from_config(current: &str, retained: &[String]) -> KeyRing {
+    let mut passphrases: Vec<String> = retained.to_vec();
+    passphrases.push(current.to_string());
+    KeyRing::from_passphrases(&passphrases)
+}
+
+/// Spawn the session-token re-wrap task (bff DESIGN §6.2): every
+/// `REWRAP_INTERVAL_SECS`, scan session blobs written under a retained
+/// (old) key and re-encrypt them with the current key, `REWRAP_BATCH` ids
+/// per pass. Trial-decrypt identifies the writer key; a scan failure
+/// leaves sessions queued for the next pass.
+pub fn spawn_session_rewrap(
+    store: crate::session::SessionStore,
+    current: String,
+    retained: Vec<String>,
+) {
+    const REWRAP_INTERVAL_SECS: u64 = 600;
+    const REWRAP_BATCH: usize = 100;
+    tokio::spawn(async move {
+        let ring = ring_from_config(&current, &retained);
+        if ring.retained.is_empty() {
+            return; // No rotation in effect — nothing to re-wrap.
+        }
+        let current_key = ring.current_key();
+        let keys = ring.all_keys();
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(REWRAP_INTERVAL_SECS));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            let ids = match store.list_session_ids(REWRAP_BATCH).await {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::warn!(error = %e, "bff: re-wrap scan failed — sessions stay queued");
+                    continue;
+                }
+            };
+            let mut rewrapped = 0usize;
+            for id in ids {
+                let Ok(Some(mut s)) = store.get(&id).await else {
+                    continue;
+                };
+                // Fresh under the current key → skip.
+                if s.access_token(current_key).is_ok() && s.refresh_token(current_key).is_ok() {
+                    continue;
+                }
+                // Old-key blobs: decrypt across the ring, re-encrypt under
+                // the current key, persist.
+                let access = s.access_token_with_ring(current_key, &keys);
+                let refresh = s.refresh_token_with_ring(current_key, &keys);
+                if let (Ok(at), Ok(rt)) = (access, refresh) {
+                    let _ = s.set_access_token(&at, current_key);
+                    let _ = s.set_refresh_token(&rt, current_key);
+                    if store.put(&id, &s).await.is_ok() {
+                        rewrapped += 1;
+                    }
+                }
+            }
+            if rewrapped > 0 {
+                tracing::debug!(rewrapped, "bff: session re-wrap pass");
+            }
+        }
+    });
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -275,72 +343,4 @@ mod tests {
         let decoded = hex_decode(&encoded).unwrap();
         assert_eq!(decoded, data);
     }
-}
-
-/// Build the operational ring from the config: retained (older)
-/// passphrases first, the current one last — `KeyRing::from_passphrases`
-/// treats the last entry as current.
-pub fn ring_from_config(current: &str, retained: &[String]) -> KeyRing {
-    let mut passphrases: Vec<String> = retained.to_vec();
-    passphrases.push(current.to_string());
-    KeyRing::from_passphrases(&passphrases)
-}
-
-/// Spawn the session-token re-wrap task (bff DESIGN §6.2): every
-/// `REWRAP_INTERVAL_SECS`, scan session blobs written under a retained
-/// (old) key and re-encrypt them with the current key, `REWRAP_BATCH` ids
-/// per pass. Trial-decrypt identifies the writer key; a scan failure
-/// leaves sessions queued for the next pass.
-pub fn spawn_session_rewrap(
-    store: crate::session::SessionStore,
-    current: String,
-    retained: Vec<String>,
-) {
-    const REWRAP_INTERVAL_SECS: u64 = 600;
-    const REWRAP_BATCH: usize = 100;
-    tokio::spawn(async move {
-        let ring = ring_from_config(&current, &retained);
-        if ring.retained.is_empty() {
-            return; // No rotation in effect — nothing to re-wrap.
-        }
-        let current_key = ring.current_key();
-        let keys = ring.all_keys();
-        let mut interval =
-            tokio::time::interval(std::time::Duration::from_secs(REWRAP_INTERVAL_SECS));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        loop {
-            interval.tick().await;
-            let ids = match store.list_session_ids(REWRAP_BATCH).await {
-                Ok(ids) => ids,
-                Err(e) => {
-                    tracing::warn!(error = %e, "bff: re-wrap scan failed — sessions stay queued");
-                    continue;
-                }
-            };
-            let mut rewrapped = 0usize;
-            for id in ids {
-                let Ok(Some(mut s)) = store.get(&id).await else {
-                    continue;
-                };
-                // Fresh under the current key → skip.
-                if s.access_token(current_key).is_ok() && s.refresh_token(current_key).is_ok() {
-                    continue;
-                }
-                // Old-key blobs: decrypt across the ring, re-encrypt under
-                // the current key, persist.
-                let access = s.access_token_with_ring(current_key, &keys);
-                let refresh = s.refresh_token_with_ring(current_key, &keys);
-                if let (Ok(at), Ok(rt)) = (access, refresh) {
-                    let _ = s.set_access_token(&at, current_key);
-                    let _ = s.set_refresh_token(&rt, current_key);
-                    if store.put(&id, &s).await.is_ok() {
-                        rewrapped += 1;
-                    }
-                }
-            }
-            if rewrapped > 0 {
-                tracing::debug!(rewrapped, "bff: session re-wrap pass");
-            }
-        }
-    });
 }

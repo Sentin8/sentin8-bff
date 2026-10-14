@@ -58,7 +58,7 @@ pub async fn auth_login(
         .unwrap_or("");
     // org_id is no longer in TLS headers — resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
-        crate::tenant::resolve_org_id_from_env_id(&state.pool, &env_id)
+        crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
             .map(|id| id.to_string())
             .unwrap_or_default()
@@ -174,7 +174,7 @@ pub async fn auth_login(
     let scope_string = if !q.scope.is_empty() {
         q.scope.clone()
     } else {
-        let allowed = resolve_app_scopes(&state, &hostname).await;
+        let allowed = resolve_app_scopes(&state, hostname).await;
         if allowed.is_empty() {
             "openid profile email offline_access".to_string()
         } else {
@@ -239,7 +239,7 @@ pub async fn auth_sign_up(
         .unwrap_or("");
     // org_id is no longer in TLS headers — resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
-        crate::tenant::resolve_org_id_from_env_id(&state.pool, &env_id)
+        crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
             .map(|id| id.to_string())
             .unwrap_or_default()
@@ -329,7 +329,7 @@ pub async fn auth_sign_up(
     let scope_string = if !q.scope.is_empty() {
         q.scope.clone()
     } else {
-        let allowed = resolve_app_scopes(&state, &hostname).await;
+        let allowed = resolve_app_scopes(&state, hostname).await;
         if allowed.is_empty() {
             "openid profile email offline_access".to_string()
         } else {
@@ -480,16 +480,12 @@ async fn resolve_tenant_sentin8_auth_url(
                 format!("failed to get BFF M2M token: {e}"),
             )
         })?;
-    let resp = client
-        .get(&sentin8_sys_url)
-        .send()
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::BAD_GATEWAY,
-                format!("Sys auth-domain request failed: {e}"),
-            )
-        })?;
+    let resp = client.get(&sentin8_sys_url).send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("Sys auth-domain request failed: {e}"),
+        )
+    })?;
     if !resp.status().is_success() {
         return Err((
             StatusCode::BAD_GATEWAY,
@@ -1015,7 +1011,7 @@ pub async fn auth_callback(
         .unwrap_or("");
     // org_id is no longer in TLS headers — resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
-        crate::tenant::resolve_org_id_from_env_id(&state.pool, &env_id)
+        crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
             .map(|id| id.to_string())
             .unwrap_or_default()
@@ -1123,7 +1119,7 @@ pub async fn auth_callback(
                 access_token: d.access_token,
                 refresh_token: d.refresh_token,
                 token_type: d.token_type,
-                expires_in: d.expires_in as u64,
+                expires_in: d.expires_in,
                 scope: d.scope,
             }
         }
@@ -1174,8 +1170,8 @@ pub async fn auth_callback(
     // (staff-auth apps), the token env must BE the auth env. A prod-env
     // customer token presented to eTeller (auth.staff.*) is rejected here.
     if let Some(inst) = &instance_info {
-        if !inst.env_id.is_empty() && !token_env_id.is_empty() {
-            if !auth_env_matches(&state, inst, &token_env_id).await {
+        if !inst.env_id.is_empty() && !token_env_id.is_empty()
+            && !auth_env_matches(&state, inst, &token_env_id).await {
                 tracing::warn!(
                     hostname = %hostname,
                     token_env = %token_env_id,
@@ -1188,7 +1184,6 @@ pub async fn auth_callback(
                 )
                     .into_response();
             }
-        }
 
         // F-A — app-group membership gate (fail-closed by default). The
         // gate mode is declarative on the instance (strict/self_service,
@@ -1271,7 +1266,7 @@ pub async fn auth_callback(
     // (.sentin8.local), letting one app's session cookie replay at every
     // other BFF in the platform. Hostnames that don't match the
     // app-instance pattern omit the Domain attribute (exact-host cookie).
-    let cookie_domain = session::app_cookie_domain_for_host(&hostname).unwrap_or_default();
+    let cookie_domain = session::app_cookie_domain_for_host(hostname).unwrap_or_default();
     let pkce_clear = if cookie_domain.is_empty() {
         "bff-pkce=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0".to_string()
     } else {
@@ -1905,11 +1900,7 @@ async fn resolve_app_custom_domain(
                 return String::new();
             }
         };
-        match client
-            .get(&sentin8_sys_url)
-            .send()
-            .await
-        {
+        match client.get(&sentin8_sys_url).send().await {
             Ok(resp) if resp.status().is_success() => {
                 if let Ok(data) = resp.json::<serde_json::Value>().await {
                     let domain = data["custom_domain"].as_str().unwrap_or("");

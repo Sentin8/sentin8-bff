@@ -832,16 +832,12 @@ pub async fn delegate_scim_delete(
         sentin8_auth_url.trim_end_matches('/'),
         id
     );
-    let resp = client
-        .delete(&scim_url)
-        .send()
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::BAD_GATEWAY,
-                format!("auth SCIM delete failed: {e}"),
-            )
-        })?;
+    let resp = client.delete(&scim_url).send().await.map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("auth SCIM delete failed: {e}"),
+        )
+    })?;
 
     let status = resp.status();
     if !status.is_success() {

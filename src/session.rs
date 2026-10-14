@@ -359,9 +359,9 @@ impl SessionStore {
         }
         let manager = sentin8::middleware::valkey_client(valkey_url, "sentin8:bff")
             .await
-            .map_err(|e| glide::GlideError::Connection(format!(
-                "session store client construction: {e}"
-            )))?;
+            .map_err(|e| {
+                glide::GlideError::Connection(format!("session store client construction: {e}"))
+            })?;
         Ok(Self {
             valkey: Arc::new(manager),
             ttl_seconds,
@@ -384,8 +384,9 @@ impl SessionStore {
         let value: Option<String> = conn.get(key).await?;
         match value {
             Some(v) => {
-                let session: Session = serde_json::from_str(&v)
-                    .map_err(|e| glide::GlideError::Request(format!("session decode failed: {e}")))?;
+                let session: Session = serde_json::from_str(&v).map_err(|e| {
+                    glide::GlideError::Request(format!("session decode failed: {e}"))
+                })?;
                 Ok(Some(session))
             }
             None => Ok(None),
