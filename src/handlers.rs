@@ -1174,20 +1174,22 @@ pub async fn auth_callback(
     // (staff-auth apps), the token env must BE the auth env. A prod-env
     // customer token presented to eTeller (auth.staff.*) is rejected here.
     if let Some(inst) = &instance_info {
-        if !inst.env_id.is_empty() && !token_env_id.is_empty()
-            && !auth_env_matches(&state, inst, &token_env_id).await {
-                tracing::warn!(
-                    hostname = %hostname,
-                    token_env = %token_env_id,
-                    instance_env = %inst.env_id,
-                    "bff: auth_callback REJECTED — token env does not match the app's auth environment"
-                );
-                return (
-                    StatusCode::FORBIDDEN,
-                    "authenticated against the wrong auth environment".to_string(),
-                )
-                    .into_response();
-            }
+        if !inst.env_id.is_empty()
+            && !token_env_id.is_empty()
+            && !auth_env_matches(&state, inst, &token_env_id).await
+        {
+            tracing::warn!(
+                hostname = %hostname,
+                token_env = %token_env_id,
+                instance_env = %inst.env_id,
+                "bff: auth_callback REJECTED — token env does not match the app's auth environment"
+            );
+            return (
+                StatusCode::FORBIDDEN,
+                "authenticated against the wrong auth environment".to_string(),
+            )
+                .into_response();
+        }
 
         // F-A — app-group membership gate (fail-closed by default). The
         // gate mode is declarative on the instance (strict/self_service,
