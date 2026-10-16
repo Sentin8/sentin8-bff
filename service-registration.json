@@ -4,7 +4,11 @@
     {
       "service_type": "sentin8:bff",
       "subdomain": "bff",
-      "binary": "sentin8-bff"
+      "binary": "sentin8-bff",
+      "telemetry_property": {
+        "slug": "bff",
+        "name": "Sentin8:BFF Platform Telemetry"
+      }
     }
   ]
 }
