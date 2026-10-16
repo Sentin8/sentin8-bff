@@ -93,5 +93,5 @@ sentin8-middleware = { git = "https://github.com/Sentin8/sentin8-sdk", tag = "sd
 sentin8-m2m = { git = "https://github.com/Sentin8/sentin8-sdk", tag = "sdk-v0.6.5" }
 sentin8-tls = { git = "https://github.com/Sentin8/sentin8-sdk", tag = "sdk-v0.6.5" }
 sentin8-bff-contracts = { path = "sdk/crates/bff-contracts" }
-sentin8-stat-sdk = { git = "https://github.com/Sentin8/sentin8-stat", tag = "stat-sdk-v0.6.3" }
+sentin8-stat-sdk = { git = "https://github.com/Sentin8/sentin8-stat", tag = "stat-sdk-v0.6.4" }
 sentin8-bff-sdk = { path = "sdk/facade" }
