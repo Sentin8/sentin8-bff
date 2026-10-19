@@ -3,12 +3,12 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-// Integration tests for BFF —
+// Integration tests for BFF -
 //
 // Tests session lifecycle, PKCE generation, token encryption, CSRF token
 // generation, and tenant isolation (separate sessions for different org/env).
 
-// The module is shared source with the main binary — items used only by
+// The module is shared source with the main binary - items used only by
 // the server (SessionStore, cookie helpers) are dead here.
 #[path = "../src/session.rs"]
 #[allow(dead_code)]

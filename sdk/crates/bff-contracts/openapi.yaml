@@ -8,7 +8,7 @@ info:
   title: Sentin8:BFF API
   version: 0.1.0
   description: |
-    Sentin8 Sentin8:BFF — Backend for Frontend service.
+    Sentin8 Sentin8:BFF - Backend for Frontend service.
     Server-side OAuth token guardian with DCR, session management, and proxy.
   license:
     name: MIT

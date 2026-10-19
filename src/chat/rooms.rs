@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Chat room management — conversation join/leave + participant filtering.
+//! Chat room management - conversation join/leave + participant filtering.
 //!
 //! BFF only pushes chat frames for conversations the client has joined.
 //! Membership is enforced server-side against the conversation's
@@ -24,7 +24,7 @@ pub type JoinedRooms = Arc<RwLock<HashSet<String>>>;
 ///
 /// In a full implementation, this queries the chat back-end service's
 /// participant list. For now, we use a simple "if you joined it, you're
-/// in it" model — the client explicitly joins conversations and BFF
+/// in it" model - the client explicitly joins conversations and BFF
 /// enforces that only joined conversations receive frames.
 pub async fn is_participant(joined: &JoinedRooms, conversation_id: &str) -> bool {
     joined.read().await.contains(conversation_id)

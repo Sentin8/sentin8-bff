@@ -11,7 +11,7 @@
 //! destroys a record and revokes its stored refresh token, and
 //! `DELETE /v1/auth/sessions` revokes every session except the caller's
 //! current one. The store has no subject index, so listing uses the bounded
-//! SCAN (`SessionStore::list_session_ids`) filtered by `user_id` — the same
+//! SCAN (`SessionStore::list_session_ids`) filtered by `user_id` - the same
 //! shape the session-reaper (`subscribe/session_revocation.rs`) uses for
 //! subject-scope kills.
 
@@ -26,7 +26,7 @@ use crate::handlers::{extract_cookie, AppState};
 use crate::session::{self, Session};
 
 /// Bounded SCAN limit for the subject-scoped session listing (matches the
-/// session-reaper's `list_session_ids(1000)` batch — SCAN keeps the shared
+/// session-reaper's `list_session_ids(1000)` batch - SCAN keeps the shared
 /// Valkey responsive, `KEYS` would block under load).
 const SESSION_SCAN_LIMIT: usize = 1000;
 
@@ -48,7 +48,7 @@ async fn caller_session(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .ok_or((StatusCode::UNAUTHORIZED, "session not found".to_string()))?;
-    // D2 — session→application binding (bff DESIGN §8.2): the caller's
+    // D2 - session→application binding (bff DESIGN §8.2): the caller's
     // session must belong to the app instance resolved from this request
     // (fail-closed, same predicate as `auth_session`).
     let req_app = headers
@@ -68,7 +68,7 @@ async fn caller_session(
 
 /// 404 predicate for single-session routes: a session is addressable only
 /// when the record exists AND belongs to the caller. Missing and
-/// foreign-owned are the same `None` — no existence oracle across users
+/// foreign-owned are the same `None` - no existence oracle across users
 /// (bff DESIGN §8.9).
 fn owned_session(sess: Option<Session>, caller_user_id: &str) -> Option<Session> {
     match sess {
@@ -79,12 +79,12 @@ fn owned_session(sess: Option<Session>, caller_user_id: &str) -> Option<Session>
 
 /// Current-exclusion predicate for "revoke all others": a record is
 /// revocable only when owned by the caller AND it is not the caller's
-/// current session — the current session always survives (bff DESIGN §8.9).
+/// current session - the current session always survives (bff DESIGN §8.9).
 fn revocable_other(sess: &Session, caller_user_id: &str, current_session_id: &str) -> bool {
     sess.user_id == caller_user_id && sess.session_id != current_session_id
 }
 
-/// Build one listing entry — metadata only, never tokens (bff DESIGN §8.1:
+/// Build one listing entry - metadata only, never tokens (bff DESIGN §8.1:
 /// tokens never reach the browser).
 fn session_entry(sess: &Session, current_session_id: &str) -> Value {
     serde_json::json!({
@@ -97,7 +97,7 @@ fn session_entry(sess: &Session, current_session_id: &str) -> Value {
 
 // ── Revocation ──────────────────────────────────────────────────────────
 
-/// Revoke one stored refresh token at Auth — the same best-effort
+/// Revoke one stored refresh token at Auth - the same best-effort
 /// `POST /oauth/revoke` (form `token`) sign-out uses. Best-effort by
 /// design: the destroyed store record already makes the cached tokens
 /// unusable, so a failed revoke call never blocks the record delete.
@@ -124,7 +124,7 @@ async fn revoke_session_record(state: &AppState, client: &reqwest::Client, sess:
 
 // ── Handlers ────────────────────────────────────────────────────────────
 
-/// `GET /v1/auth/sessions` — list the caller's active sessions.
+/// `GET /v1/auth/sessions` - list the caller's active sessions.
 ///
 /// Returns `{sessions: [{session_id, created_at, last_seen, current}]}`
 /// for every cached record owned by the caller (`user_id` filter over the
@@ -157,7 +157,7 @@ pub async fn list_sessions(
     Ok(Json(serde_json::json!({ "sessions": sessions })))
 }
 
-/// `GET /v1/auth/sessions/{id}` — one session's metadata.
+/// `GET /v1/auth/sessions/{id}` - one session's metadata.
 ///
 /// 404 when the record is missing or owned by another user.
 pub async fn get_session(
@@ -176,7 +176,7 @@ pub async fn get_session(
     Ok(Json(session_entry(&sess, &caller.session_id)))
 }
 
-/// `DELETE /v1/auth/sessions/{id}` — revoke one session.
+/// `DELETE /v1/auth/sessions/{id}` - revoke one session.
 ///
 /// Destroys the store record and revokes its stored refresh token at Auth
 /// (the sign-out revocation path). 404 when the record is missing or
@@ -206,7 +206,7 @@ pub async fn revoke_session(
     ))
 }
 
-/// `DELETE /v1/auth/sessions` — revoke every session except the current.
+/// `DELETE /v1/auth/sessions` - revoke every session except the current.
 ///
 /// Destroys each record owned by the caller other than the calling
 /// session (current-exclusion, bff DESIGN §8.9) and revokes its stored
@@ -286,7 +286,7 @@ mod tests {
         ] {
             assert!(
                 v.get(banned).is_none(),
-                "session entry leaked `{banned}` — tokens never reach the client"
+                "session entry leaked `{banned}` - tokens never reach the client"
             );
         }
         assert_eq!(v["current"], true);

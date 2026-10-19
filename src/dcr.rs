@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! DCR (Dynamic Client Registration) for BFF (–).
+//! DCR (Dynamic Client Registration) for BFF (-).
 //!
 //! BFF uses DCR to auto-register OAuth clients with Auth when provisioning
 //! app instances. This module implements the DCR client, registry table,
@@ -32,7 +32,7 @@ impl DcrClient {
         }
     }
 
-    /// Register an OAuth client via DCR (RFC 7591) — `POST /oauth/register`.
+    /// Register an OAuth client via DCR (RFC 7591) - `POST /oauth/register`.
     pub async fn register(
         &self,
         req: &DcrRegisterRequest,
@@ -78,7 +78,7 @@ impl DcrClient {
         Ok(())
     }
 
-    /// Update a registered client via DCR Management (RFC 7592) —
+    /// Update a registered client via DCR Management (RFC 7592) -
     /// PUT to the registration_client_uri with the registration_access_token.
     pub async fn update(
         &self,
@@ -180,7 +180,7 @@ pub struct DcrClientEntry {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// DCR registry — stores registered clients keyed by sentin8_auth_domain.
+/// DCR registry - stores registered clients keyed by sentin8_auth_domain.
 pub struct DcrRegistry {
     pool: PgPool,
     encryption_key: [u8; 32],
@@ -299,8 +299,8 @@ pub fn pre_provision_dash_org_config(org_slug: &str, sentin8_domain: &str) -> (S
 /// Parse `bff.{app_domain}` → resolve the Auth domain for the app's org/env.
 /// E.g. `bff.www.ibank.local` → `auth.prod.ibank.local` (derived from app_domain).
 pub fn resolve_app_sentin8_auth_domain(app_domain: &str, sentin8_domain: &str) -> String {
-    // app_domain is e.g. `www.ibank.local` — strip subdomain parts to find org domain.
-    // P0: simple heuristic — the app_domain is `{app_slug}.{env_slug}.e.{org_slug}.o.{sentin8_domain}`.
+    // app_domain is e.g. `www.ibank.local` - strip subdomain parts to find org domain.
+    // P0: simple heuristic - the app_domain is `{app_slug}.{env_slug}.e.{org_slug}.o.{sentin8_domain}`.
     // The auth domain is `auth.{env_slug}.e.{org_slug}.o.{sentin8_domain}`.
     let parts: Vec<&str> = app_domain.split('.').collect();
     if parts.len() >= 5 {

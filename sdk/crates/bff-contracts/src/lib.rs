@@ -5,14 +5,14 @@
 
 //! # bff-contracts
 //!
-//! Rust types for the BFF Backend-for-Frontend service — session
+//! Rust types for the BFF Backend-for-Frontend service - session
 //! metadata and dynamic-client-registration wire types.
 
 #![deny(missing_docs)]
 
 use serde::{Deserialize, Serialize};
 
-/// Session metadata returned by `GET /bff/auth/session` — never includes tokens.
+/// Session metadata returned by `GET /bff/auth/session` - never includes tokens.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionMetadata {
     /// The authenticated user's id.
@@ -51,7 +51,7 @@ pub struct DcrRegisterRequest {
 /// Response from DCR registration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DcrRegisterResponse {
-    /// The registered client id (no secret — public PKCE clients).
+    /// The registered client id (no secret - public PKCE clients).
     pub client_id: String,
     /// The Auth domain the client was registered on.
     pub sentin8_auth_domain: String,
@@ -98,7 +98,7 @@ mod tests {
         ] {
             assert!(
                 v.get(banned).is_none(),
-                "SessionMetadata leaked a `{banned}` field — tokens must never reach the client"
+                "SessionMetadata leaked a `{banned}` field - tokens must never reach the client"
             );
         }
     }

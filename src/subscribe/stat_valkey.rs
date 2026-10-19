@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Valkey subscriber for stat rollups — replaces the Bus stat.traffic.snapshot path.
+//! Valkey subscriber for stat rollups - replaces the Bus stat.traffic.snapshot path.
 //!
 //! Subscribes to `stat:rollups:minute` and pushes events to all active
 //! SSE sessions that are subscribed to `stat.traffic.snapshot`.

@@ -96,7 +96,7 @@ pub fn build_event(
 ///
 /// Uses the provided `sentin8_stat_sdk::client::Client` (configured with the app
 /// instance's Auth M2M token, scope `sentin8:stat:measure`). Errors are logged and
-/// swallowed — tagging must never break the proxied request.
+/// swallowed - tagging must never break the proxied request.
 pub async fn tag_event(client: &sentin8_stat_sdk::client::Client, event: &ServerTagEvent) {
     let props = serde_json::json!({
         "service": event.service,
@@ -172,7 +172,7 @@ mod tests {
     use super::*;
     use sentin8_stat_sdk::client::Client as StatClient;
 
-    /// Install the Graviola PQ crypto provider once — reqwest panics with
+    /// Install the Graviola PQ crypto provider once - reqwest panics with
     /// "No provider set" when a client is built without one.
     fn install_provider() {
         use std::sync::Once;
@@ -288,8 +288,8 @@ mod tests {
     #[tokio::test]
     async fn tag_event_swallows_errors() {
         install_provider();
-        // Use an invalid Stat URL — the call should fail but not panic.
-        // Test-only plain transport — an invalid Stat URL; the call
+        // Use an invalid Stat URL - the call should fail but not panic.
+        // Test-only plain transport - an invalid Stat URL; the call
         // should fail but not panic.
         let client = StatClient::new_dev_plain("http://127.0.0.1:1", Uuid::new_v4());
         let ev = build_event(
@@ -324,7 +324,7 @@ mod tests {
     #[tokio::test]
     async fn sentin8_stat_tagger_skips_when_disabled() {
         install_provider();
-        // Test-only plain transport — an invalid Stat URL; the call
+        // Test-only plain transport - an invalid Stat URL; the call
         // should fail but not panic.
         let client = StatClient::new_dev_plain("http://127.0.0.1:1", Uuid::new_v4());
         let cfg = ServerTaggingConfig {
@@ -342,7 +342,7 @@ mod tests {
             200,
             "corr",
         );
-        // disabled — should skip the HTTP call entirely.
+        // disabled - should skip the HTTP call entirely.
         tagger.tag(&ev).await;
     }
 

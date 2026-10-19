@@ -6,20 +6,20 @@
 //! Auth provisioning client (F-A customer auto-add).
 //!
 //! The BFF auto-adds first-party customer-app users to the app instance's
-//! `sentin8:app:{instance_id}` group at OAuth callback — customer apps do
+//! `sentin8:app:{instance_id}` group at OAuth callback - customer apps do
 //! not gate on pre-provisioned membership (the F-A strict gate is for
 //! staff apps; a customer must never be locked out of the app they just
 //! signed up for). The membership is provisioned through **Auth's
 //! provisioning API** (`POST /v1/admin/provision/group_member`) with a
 //! certificate identity (`sentin8:auth:admin:write` on the `bff-provision`
-//! workload) — the BFF never writes auth tables directly (DBX).
+//! workload) - the BFF never writes auth tables directly (DBX).
 //! Copy of sys's/app's `auth_provision.rs` pattern (peers cannot share a
-//! crate — dependency direction is one-way).
+//! crate - dependency direction is one-way).
 
 use std::sync::Arc;
 
 /// Process-global provisioner (`None` when the DCR registration has not
-/// completed — the caller logs and fails closed).
+/// completed - the caller logs and fails closed).
 static PROVISIONER: tokio::sync::OnceCell<Option<Arc<Provisioner>>> =
     tokio::sync::OnceCell::const_new();
 
@@ -31,7 +31,7 @@ pub struct Provisioner {
 impl Provisioner {
     /// Build the shared provisioner (auth DESIGN §4.3f):
     /// ensure the `bff-provision` workload CERTIFICATE (load-or-mint from
-    /// Acme) and build the cert-presenting transport — Auth's TLS layer
+    /// Acme) and build the cert-presenting transport - Auth's TLS layer
     /// authenticates the handshake; the registry map authorizes
     /// `sentin8:auth:admin:write`.
     pub async fn shared() -> Option<&'static Arc<Provisioner>> {
@@ -49,7 +49,7 @@ impl Provisioner {
                 {
                     Ok(c) => c,
                     Err(e) => {
-                        tracing::warn!(error = %e, "bff: provision certificate ensure failed — auto-add disabled");
+                        tracing::warn!(error = %e, "bff: provision certificate ensure failed - auto-add disabled");
                         return None;
                     }
                 };
@@ -61,7 +61,7 @@ impl Provisioner {
                 let http = match sentin8::middleware::mtls::build_mtls_client(&mtls) {
                     Ok(c) => c,
                     Err(e) => {
-                        tracing::warn!(error = %e, "bff: provision transport build failed — auto-add disabled");
+                        tracing::warn!(error = %e, "bff: provision transport build failed - auto-add disabled");
                         return None;
                     }
                 };
@@ -75,7 +75,7 @@ impl Provisioner {
     }
 
     /// POST to Auth's provisioning API with the target-env header
-    /// (auth is env-scoped — the header carries the tenant context).
+    /// (auth is env-scoped - the header carries the tenant context).
     async fn post(
         &self,
         path: &str,
@@ -98,7 +98,7 @@ impl Provisioner {
         Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::Null))
     }
 
-    /// Add a user to a group (idempotent — returns the post-state count).
+    /// Add a user to a group (idempotent - returns the post-state count).
     pub async fn group_member(
         &self,
         env_id: uuid::Uuid,

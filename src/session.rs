@@ -26,7 +26,7 @@ use uuid::Uuid;
 pub const SESSION_COOKIE: &str = "bff-session";
 
 /// Auth's session cookie name. BFF clears it on sign-out so apps can
-/// route sign-out through BFF only — they never call Auth directly.
+/// route sign-out through BFF only - they never call Auth directly.
 pub const SENTIN8_AUTH_SESSION_COOKIE: &str = "__session";
 
 /// Derive the cookie domain from a hostname (mirrors
@@ -46,7 +46,7 @@ pub fn cookie_domain_for_host(host: &str, fallback: &str) -> String {
     labels[1..].join(".")
 }
 
-/// Derive the BFF session cookie domain from the request hostname —
+/// Derive the BFF session cookie domain from the request hostname -
 /// scoped to the **app instance's domain**, never the platform root
 /// .
 ///
@@ -63,7 +63,7 @@ pub fn cookie_domain_for_host(host: &str, fallback: &str) -> String {
 /// A platform-root fallback (`Domain=.{sentin8_domain}`) is prohibited:
 /// it makes every BFF in the platform share one cookie jar, which is
 /// exactly the cross-app replay defect. When the hostname has fewer than
-/// 4 labels (no app-instance pattern), fall back to the exact host —
+/// 4 labels (no app-instance pattern), fall back to the exact host -
 /// the caller should then use `cookie_exact_host` (no Domain attribute).
 pub fn app_cookie_domain_for_host(host: &str) -> Option<String> {
     let host = host.rsplit_once(':').map(|(h, _)| h).unwrap_or(host);
@@ -73,7 +73,7 @@ pub fn app_cookie_domain_for_host(host: &str) -> Option<String> {
     let stripped = host.strip_prefix("bff.").unwrap_or(host);
     // The app-instance pattern needs at least 4 labels:
     // {app}.{env}.{org-slug}.{tld...}. Platform Dash is
-    // dash.ops.sys.sentin8.local — also 4+.
+    // dash.ops.sys.sentin8.local - also 4+.
     let labels: Vec<&str> = stripped.split('.').collect();
     if labels.len() < 4 {
         return None;
@@ -187,7 +187,7 @@ impl Session {
     ///
     /// `domain` is the **app instance's domain** : the cookie
     /// is visible only on `{app}.{env}.{org}.{tld}` and its `bff.` host.
-    /// When `domain` is empty the Domain attribute is omitted — the cookie
+    /// When `domain` is empty the Domain attribute is omitted - the cookie
     /// is then bound to the exact response host (fallback for hostnames
     /// that don't match the app-instance pattern).
     pub fn cookie(&self, domain: &str) -> String {
@@ -203,7 +203,7 @@ impl Session {
     }
 
     /// Build a cookie header that clears the session cookie.
-    /// `domain` semantics match [`Session::cookie`] — empty means no
+    /// `domain` semantics match [`Session::cookie`] - empty means no
     /// Domain attribute (exact-host cookie).
     pub fn clear_cookie(domain: &str) -> String {
         let domain_attr = if domain.is_empty() {
@@ -229,7 +229,7 @@ impl Session {
     /// Rules:
     /// - session with an application_id must match the request's instance
     /// - a session without application_id is only usable where no app
-    ///   instance matches (the platform BFF) — never on an app BFF
+    ///   instance matches (the platform BFF) - never on an app BFF
     pub fn matches_application(&self, request_application_id: Option<&str>) -> bool {
         match (&self.application_id, request_application_id) {
             (Some(sess_app), Some(req_app)) => sess_app == req_app,
@@ -322,7 +322,7 @@ pub struct SessionStore {
 impl SessionStore {
     pub async fn new(valkey_url: &str, ttl_seconds: u64) -> Result<Self, glide::GlideError> {
         // Certificate identity (group DESIGN.md §3.1): the session store
-        // presents the bff workload's pair. The pair is ensured FIRST —
+        // presents the bff workload's pair. The pair is ensured FIRST -
         // a fresh platform (or one enrolled before the Valkey-plane
         // identities existed) has no persisted pair yet. The mint rides
         // the bootstrap-enrollment channel, which races Acme's own boot:
@@ -350,7 +350,7 @@ impl SessionStore {
                     }
                     tracing::warn!(
                         error = %e,
-                        "bff: Valkey workload identity mint pending (acme boot race) — retrying in 10s"
+                        "bff: Valkey workload identity mint pending (acme boot race) - retrying in 10s"
                     );
                     tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                 }
@@ -410,7 +410,7 @@ impl SessionStore {
         Ok(())
     }
 
-    /// List session ids via SCAN (bounded — re-wrap scan pass). SCAN keeps
+    /// List session ids via SCAN (bounded - re-wrap scan pass). SCAN keeps
     /// the shared Valkey responsive (KEYS would block under load).
     pub async fn list_session_ids(&self, limit: usize) -> Result<Vec<String>, glide::GlideError> {
         let conn = (*self.valkey).clone();

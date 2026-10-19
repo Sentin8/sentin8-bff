@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Proxy handler — validates session, decrypts access token, attaches Bearer,
+//! Proxy handler - validates session, decrypts access token, attaches Bearer,
 //! forwards to upstream. Refreshes expired tokens transparently.
 //!
 //!
@@ -30,7 +30,7 @@ use crate::tagging::{ServerTagEventType, ServerTagger};
 static M2M_CREDENTIALS: M2mCredentials = M2mCredentials::new();
 
 struct M2mCredentials {
-    /// Cert-bound mTLS identity (RFC 8705 — the only M2M method, auth
+    /// Cert-bound mTLS identity (RFC 8705 - the only M2M method, auth
     /// design ): the workload's client cert/key/CA PEM paths, persisted
     /// by the shared m2m helper. Empty when not (yet) issued+registered.
     cert_path: std::sync::RwLock<String>,
@@ -59,7 +59,7 @@ pub struct ProxyState {
     pub tagger: Arc<dyn ServerTagger>,
     /// Shared HTTP client used to forward proxied requests to upstream
     /// services. A single `reqwest::Client` is held for the lifetime of the
-    /// server so its internal connection pool is reused across requests —
+    /// server so its internal connection pool is reused across requests -
     /// building a new client per request (the previous behaviour) starved
     /// the pool under concurrent load and produced intermittent
     /// `error sending request for url` 502s. `Sentin8HttpClient` clones cheaply
@@ -73,7 +73,7 @@ pub async fn proxy(
 ) -> Response {
     // Resolve tenant context from TLS-injected headers (x-sentin8-env-id,
     // x-sentin8-app-id). This is the single source of truth for
-    // tenant identity — no hostname parsing, no special-casing for dash/sys/ops.
+    // tenant identity - no hostname parsing, no special-casing for dash/sys/ops.
     // org_id is no longer in TLS headers; it is resolved from env_id when needed.
     // Pass the TLS-injected hostname so the tenant resolver can distinguish
     // platform BFF (bff.dash.{domain}) from app BFF (bff.{app_domain}).
@@ -102,12 +102,12 @@ pub async fn proxy(
     }
     let service = parts[1].to_string();
     // Resolve the canonical colon service identity (
-    // .md ) — the path segment carries the bare name (`auth`, `ledger`);
+    // .md ) - the path segment carries the bare name (`auth`, `ledger`);
     // delegation scope prefixes and audiences need the full identity
     // (`sentin8:auth`, `bank8:ledger`). URL construction stays on the
     // registry subdomain (DNS-safe), never the colon identity.
     let service_identity = crate::tenant::resolve_service_identity(&state.pool, &service).await;
-    // Reconstruct the rest_path with query string — req.uri.path strips
+    // Reconstruct the rest_path with query string - req.uri.path strips
     // the query, so we append it back for the downstream filtering logic.
     let rest_path = match req.uri().query() {
         Some(q) if !q.is_empty() => format!("{}?{}", parts[2], q),
@@ -151,7 +151,7 @@ pub async fn proxy(
         None
     };
 
-    // D2 — session→application binding : a session may only
+    // D2 - session→application binding : a session may only
     // be used on the app instance that created it. The TLS header carries
     // the app id for app BFFs; platform requests carry none. Mismatch →
     // the cookie is treated as absent (401 on authenticated routes).
@@ -161,7 +161,7 @@ pub async fn proxy(
             tracing::warn!(
                 session_app = ?s.application_id,
                 request_app = ?req_app,
-                "bff: proxy REJECTED session — application binding mismatch"
+                "bff: proxy REJECTED session - application binding mismatch"
             );
             return (
                 StatusCode::UNAUTHORIZED,
@@ -171,7 +171,7 @@ pub async fn proxy(
         }
     }
 
-    // No BFF-internal query params are stripped — target_env_id is forwarded
+    // No BFF-internal query params are stripped - target_env_id is forwarded
     // to upstream services so they can resolve the correct env_id when the
     // TLS context sets System Env (BFF-proxied requests from Dash).
     let rest_path_clean = rest_path.clone();
@@ -234,7 +234,7 @@ pub async fn proxy(
         // blocked legitimate self-service flows for newly-signed-up sentin8ors
         // whose `sentin8:sys:users` role carries `dash:*` but no `sys:*` scope.
         // BFF remains the session/token-exchange gate (CSRF, token
-        // decryption, RFC 8693 delegation) — authorization scope checks are
+        // decryption, RFC 8693 delegation) - authorization scope checks are
         // the responsibility of the upstream handler.
 
         // Resolve the effective access token to attach to the upstream request.
@@ -292,7 +292,7 @@ pub async fn proxy(
     // Override x-sentin8-env-id with target_env_id from query params.
     // Dash's ApiClient sends target_env_id as a query param on every proxied
     // request. The TLS context sets System Env because Dash is served from
-    // the platform hostname. env_id is the sole tenant key — upstream
+    // the platform hostname. env_id is the sole tenant key - upstream
     // services resolve org_id from env_id via DB lookup.
     let target_env_id_for_upstream: String = {
         let qs = rest_path.find('?');
@@ -325,8 +325,8 @@ pub async fn proxy(
                 .unwrap_or_else(|| HeaderValue::from_static("application/json")),
         )
         // Forward TLS-injected tenant context headers. Override x-sentin8-env-id
-        // with the target env_id when present — env_id is the sole tenant key.
-        // org_id is not forwarded — upstream services resolve it from env_id.
+        // with the target env_id when present - env_id is the sole tenant key.
+        // org_id is not forwarded - upstream services resolve it from env_id.
         .header(
             "x-sentin8-env-id",
             if !target_env_id_for_upstream.is_empty() {
@@ -407,7 +407,7 @@ pub async fn proxy(
             // current role scopes) so the immediately-following admin
             // operations in the new org/env carry them.
             if status.is_success() && method == "POST" && tag_service == "sys" {
-                // tag_path = parts[2] of '/proxy/sys/...' — i.e. 'v1/o'
+                // tag_path = parts[2] of '/proxy/sys/...' - i.e. 'v1/o'
                 // WITHOUT a leading slash (query included). Trim leading
                 // slashes before comparing.
                 let tag_path_only = tag_path
@@ -475,14 +475,14 @@ async fn refresh_access_token(
     client_id: &str,
 ) -> Result<RefreshTokenResponse, String> {
     // Converged path (bff DESIGN §12): refresh via the shared FAPI client
-    // with the process DPoP key — under `fapi_2` (`require_dpop = true`),
+    // with the process DPoP key - under `fapi_2` (`require_dpop = true`),
     // refresh_token grants on non-exempt (DCR-registered) clients require
     // a proof; the plain-POST form gets 401. The plain form remains only
     // as the pre-DPoP-bootstrap fallback (dev runs without a process key).
     match fapi_refresh(sentin8_auth_base_url, client_id, refresh_token).await {
         Ok(resp) => Ok(resp),
         Err(fapi_err) => {
-            tracing::warn!(error = %fapi_err, "bff: DPoP refresh failed — plain-POST fallback");
+            tracing::warn!(error = %fapi_err, "bff: DPoP refresh failed - plain-POST fallback");
             let resp = reqwest::Client::new()
                 .post(format!("{sentin8_auth_base_url}/oauth/token"))
                 .form(&[
@@ -502,7 +502,7 @@ async fn refresh_access_token(
     }
 }
 
-/// FAPI/DPoP refresh: the shared FAPI client with the process DPoP key —
+/// FAPI/DPoP refresh: the shared FAPI client with the process DPoP key -
 /// the same mechanism the explicit refresh path uses (handlers.rs).
 async fn fapi_refresh(
     sentin8_auth_base_url: &str,
@@ -533,7 +533,7 @@ async fn fapi_refresh(
 /// Auth's refresh grant re-merges the user's CURRENT role/group scopes
 /// (oauth.rs `handle_refresh`), so a token re-issued after a mid-session
 /// grant (org/env creation provisioning org:owner / env:admin scopes)
-/// carries the new permissions immediately — no re-sign-in needed.
+/// carries the new permissions immediately - no re-sign-in needed.
 async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
     let key = session::derive_key(&state.config.encryption_key);
     let refresh = match sess.refresh_token(&key) {
@@ -541,7 +541,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
         Ok(_) => {
             tracing::warn!(
                 session = %sess.session_id,
-                "bff: grant refresh skipped — session has no refresh token"
+                "bff: grant refresh skipped - session has no refresh token"
             );
             return;
         }
@@ -549,7 +549,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
             tracing::warn!(
                 session = %sess.session_id,
                 error = %e,
-                "bff: grant refresh skipped — refresh token decrypt failed"
+                "bff: grant refresh skipped - refresh token decrypt failed"
             );
             return;
         }
@@ -583,7 +583,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
             tracing::warn!(
                 session = %sess.session_id,
                 error = %e,
-                "bff: grant refresh failed — token endpoint rejected the refresh grant"
+                "bff: grant refresh failed - token endpoint rejected the refresh grant"
             );
         }
     }
@@ -591,12 +591,12 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
 
 // ── RFC 8693 Token Exchange ───────────────────────────
 
-// Note: TokenExchangeResponse is no longer needed — the Auth SDK's
+// Note: TokenExchangeResponse is no longer needed - the Auth SDK's
 // `exchange_token` returns `TokenResponse` which has the same fields.
 
 /// Resolve the effective access token to attach to the upstream request.
 ///
-///+ — Delegation Gateway model. If the session's access token
+///+ - Delegation Gateway model. If the session's access token
 ///
 /// is a platform-admin token and the request targets a specific env, BFF
 /// requests a cert-bound delegated token from Auth's
@@ -607,7 +607,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
 /// end-users), attach the original token as-is (no delegation needed).
 ///
 /// **Failure policy:** 403 (deny) → fail the request. Transient errors → fail
-/// (no platform-admin fallback — cert-bound tokens cannot be forged, and a
+/// (no platform-admin fallback - cert-bound tokens cannot be forged, and a
 /// platform-admin token lacks target env claims and would bypass RLS).
 async fn resolve_effective_token(
     state: &ProxyState,
@@ -619,7 +619,7 @@ async fn resolve_effective_token(
     _tls_env_id: Option<&str>,
 ) -> Result<Option<String>, (axum::http::StatusCode, String)> {
     // `target_service` is the canonical colon identity (`sentin8:auth`,
-    // `bank8:ledger` — ), resolved from the
+    // `bank8:ledger` - ), resolved from the
     // proxy path by `resolve_service_identity`. Normalize any caller input.
     let target_service = &sentin8::config::canonical_service_type(target_service);
     let Some(token) = sess.access_token(key).ok() else {
@@ -629,13 +629,13 @@ async fn resolve_effective_token(
         return Ok(None);
     }
 
-    // (Option A) — CIBA delegation attach: if the request carries
+    // (Option A) - CIBA delegation attach: if the request carries
     // X-BFF-Delegation (the delegation_id from POST /delegate/start), and a
     // customer-approved delegation token is cached for it, use that token
     // INSTEAD of the staff session token. Upstream services then see a
     // normal customer token (sub = customer, act = staff) and all standard
     // holder-scoped RLS applies unchanged. A missing/expired
-    // delegation falls through to the staff token — which, under Option A,
+    // delegation falls through to the staff token - which, under Option A,
     // carries no customer-data visibility, so the call fails closed.
     if let Some(delegation_id) = req_headers
         .get("x-bff-delegation")
@@ -648,10 +648,10 @@ async fn resolve_effective_token(
                 return Ok(Some(tok));
             }
             _ => {
-                // Delegation expired or not yet approved — fail closed.
+                // Delegation expired or not yet approved - fail closed.
                 return Err((
                     axum::http::StatusCode::FORBIDDEN,
-                    "delegation expired or not approved — request customer consent again".into(),
+                    "delegation expired or not approved - request customer consent again".into(),
                 ));
             }
         }
@@ -679,7 +679,7 @@ async fn resolve_effective_token(
                     let _ = state.store.create(&updated).await;
                     new_token.access_token
                 } else {
-                    // Refresh failed — forward the expired token (will likely get 401).
+                    // Refresh failed - forward the expired token (will likely get 401).
                     return Ok(Some(token));
                 }
             } else {
@@ -693,7 +693,7 @@ async fn resolve_effective_token(
     };
 
     // Check if this is a platform-admin access token that should be delegated.
-    // Only `access` tokens with `sentin8:sys:admin` scope need delegation — these are
+    // Only `access` tokens with `sentin8:sys:admin` scope need delegation - these are
     // platform operator tokens. Regular env-scoped user tokens and already-
     // delegated tokens pass through as-is.
     let claims = sentin8_auth_sdk::decode_claims_unverified(&token);
@@ -703,7 +703,7 @@ async fn resolve_effective_token(
         .map(|c| c.has_scope("sentin8:sys:admin"))
         .unwrap_or(false);
     if token_tp != "access" || !is_platform_admin {
-        // Not a platform-admin access token — attach as-is (app BFF end-users
+        // Not a platform-admin access token - attach as-is (app BFF end-users
         // have env-scoped tokens; delegated tokens already carry the target env).
         return Ok(Some(token));
     }
@@ -729,7 +729,7 @@ async fn resolve_effective_token(
         .unwrap_or_default();
 
     if target_env_id.is_empty() {
-        // No target env — attach as-is (platform admin calls without env targeting).
+        // No target env - attach as-is (platform admin calls without env targeting).
         return Ok(Some(token));
     }
 
@@ -770,8 +770,8 @@ async fn resolve_effective_token(
     // Downscope: extract scopes matching the target service prefix.
     // The colon identity makes the namespace derivable instead of heuristic:
     // platform services (`sentin8:*`) issue scopes without the vertical
-    // segment — `sentin8:auth` → `auth:` — and vertical services keep both
-    // segments — `bank8:ledger` → `bank8:ledger:`. Workers resolve to their
+    // segment - `sentin8:auth` → `auth:` - and vertical services keep both
+    // segments - `bank8:ledger` → `bank8:ledger:`. Workers resolve to their
     // base service's namespace (`bank8:payments:worker` → `bank8:payments:`).
     let scope_prefix = sentin8::config::service_scope_namespace(target_service);
     let requested_scope = sentin8_auth_sdk::extract_scopes_for_service(&sess.scope, &scope_prefix);
@@ -803,21 +803,21 @@ async fn resolve_effective_token(
                 actor = %act_sub,
                 target_env = %target_env_id,
                 service = %target_service,
-                "bff: Delegation Gateway — delegated token issued"
+                "bff: Delegation Gateway - delegated token issued"
             );
             Ok(Some(delegated.access_token))
         }
         Err(sentin8_auth_sdk::AuthError::HttpStatus { status, body })
             if status == axum::http::StatusCode::FORBIDDEN =>
         {
-            // 403 deny — staff user is not a member of the target env.
+            // 403 deny - staff user is not a member of the target env.
             tracing::warn!(
                 session = %sess.session_id,
                 actor = %act_sub,
                 target_env = %target_env_id,
                 service = %target_service,
                 body = %body,
-                "bff: delegation denied (403) — staff user is not a member of the target env"
+                "bff: delegation denied (403) - staff user is not a member of the target env"
             );
             Err((
                 axum::http::StatusCode::FORBIDDEN,
@@ -825,7 +825,7 @@ async fn resolve_effective_token(
             ))
         }
         Err(e) => {
-            // Transient failure — fail (no platform-admin fallback in cert-bound model).
+            // Transient failure - fail (no platform-admin fallback in cert-bound model).
             tracing::warn!(
                 session = %sess.session_id,
                 actor = %act_sub,
@@ -843,7 +843,7 @@ async fn resolve_effective_token(
 }
 
 /// Set the M2M cert-bound identity paths (called by server.rs after
-/// issuance + DCR; — the certificate IS the M2M identity).
+/// issuance + DCR; - the certificate IS the M2M identity).
 pub(crate) fn set_m2m_cert_paths(cert_path: String, key_path: String, ca_path: String) {
     *M2M_CREDENTIALS.cert_path.write().unwrap() = cert_path;
     *M2M_CREDENTIALS.key_path.write().unwrap() = key_path;
@@ -851,21 +851,21 @@ pub(crate) fn set_m2m_cert_paths(cert_path: String, key_path: String, ca_path: S
 }
 
 /// Get the cert-presenting `bff-delegator` transport (, auth
-/// DESIGN §4.3f) — the shared mTLS client presenting the delegator's
+/// DESIGN §4.3f) - the shared mTLS client presenting the delegator's
 /// Acme-issued certificate on every platform call (Auth's TLS layer
 /// authenticates the handshake; the registry map authorizes the
 /// delegator scopes). No M2M token exists on this path.
 ///
 /// # Errors
 /// Returns a [`String`] when the identity has not been installed yet
-/// (the boot mint is still in flight — callers surface a 503-grade
+/// (the boot mint is still in flight - callers surface a 503-grade
 /// error and retry).
 pub(crate) async fn get_sentin8_bff_m2m_token(
     config: &crate::config::Bff8Config,
 ) -> Result<reqwest::Client, String> {
     use std::sync::Arc;
 
-    // Static cache — initialized once per process.
+    // Static cache - initialized once per process.
     static M2M_SOURCE: tokio::sync::OnceCell<Arc<reqwest::Client>> =
         tokio::sync::OnceCell::const_new();
 
@@ -893,14 +893,14 @@ pub(crate) async fn get_sentin8_bff_m2m_token(
                 (cert_path, key_path, ca_path)
             };
             if cert.is_empty() || key.is_empty() {
-                tracing::warn!("bff: delegator certificate not yet installed — platform calls unavailable until the identity lands");
+                tracing::warn!("bff: delegator certificate not yet installed - platform calls unavailable until the identity lands");
                 return Arc::new(reqwest::Client::new());
             }
             let mtls = sentin8::middleware::mtls::MtlsConfig::new(&ca, &cert, &key);
             match sentin8::middleware::mtls::build_mtls_client(&mtls) {
                 Ok(c) => Arc::new(c),
                 Err(e) => {
-                    tracing::warn!(error = %e, "bff: delegator mTLS transport build failed — plain transport (calls will be rejected)");
+                    tracing::warn!(error = %e, "bff: delegator mTLS transport build failed - plain transport (calls will be rejected)");
                     Arc::new(reqwest::Client::new())
                 }
             }
@@ -914,7 +914,7 @@ pub(crate) async fn get_sentin8_bff_m2m_token(
 /// (bff design ). Auth's `/delegate/access-token` enforces
 /// RFC 8705 sender-constraining (SEC-): a cert-bound M2M token presented
 /// without `X-Sentin8-Client-Cert-Thumbprint` is hard-rejected 401. TLS injects
-/// that header only when the HTTP client presents the delegator certificate —
+/// that header only when the HTTP client presents the delegator certificate -
 /// the SAME cert the `sentin8-m2m` TokenSource used to mint the token. Called
 /// from server.rs at both DCR activation points; fail-loud, never a silent
 /// downgrade to the plain client.
@@ -931,12 +931,12 @@ pub(crate) fn install_mtls_auth_client(
             auth_client.set_http_client(
                 sentin8::middleware::http_client::Sentin8HttpClient::from_client(client),
             );
-            tracing::info!("bff-delegator: mTLS client installed on the auth SDK client — delegation calls now present the client certificate");
+            tracing::info!("bff-delegator: mTLS client installed on the auth SDK client - delegation calls now present the client certificate");
         }
         Err(e) => {
             tracing::error!(
                 error = %e,
-                "bff-delegator: failed to build the mTLS client for delegation — env-scoped delegated requests WILL 401 (SEC-2.4.10 hard reject)"
+                "bff-delegator: failed to build the mTLS client for delegation - env-scoped delegated requests WILL 401 (SEC-2.4.10 hard reject)"
             );
         }
     }

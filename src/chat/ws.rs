@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! WebSocket chat handler — `GET /ws` .
+//! WebSocket chat handler - `GET /ws` .
 //!
 //! This is the **Chat** tier of the three-tier client↔BFF transport
 //! model. It handles bidirectional, low-latency conversational exchange
@@ -30,7 +30,7 @@
 //! only pushes chat frames for conversations the client has joined.
 //!
 //! Domain events (`chat.message.sent`, `chat.conversation.created`) are
-//! NOT on this channel — they go to Bus → SSE subscription tier.
+//! NOT on this channel - they go to Bus → SSE subscription tier.
 //!
 //! Design:
 
@@ -70,7 +70,7 @@ fn rooms() -> RoomMap {
         .clone()
 }
 
-/// `GET /ws` — WebSocket upgrade handler for chat.
+/// `GET /ws` - WebSocket upgrade handler for chat.
 ///
 /// Validates the BFF session cookie on upgrade. If valid, establishes a
 /// WS connection and enters the chat event loop.
@@ -92,7 +92,7 @@ pub async fn ws_handler(
     // Validate the session.
     match _state.store.get(&session_id).await {
         Ok(Some(s)) => {
-            // D2 — session→application binding : reject
+            // D2 - session→application binding : reject
             // sessions created by another app instance.
             let req_app = headers
                 .get("x-sentin8-app-id")
@@ -102,7 +102,7 @@ pub async fn ws_handler(
                 tracing::warn!(
                     session_app = ?s.application_id,
                     request_app = ?req_app,
-                    "bff: ws chat REJECTED session — application binding mismatch"
+                    "bff: ws chat REJECTED session - application binding mismatch"
                 );
                 return axum::response::IntoResponse::into_response((
                     axum::http::StatusCode::UNAUTHORIZED,
@@ -120,7 +120,7 @@ pub async fn ws_handler(
 
     tracing::info!(
         session_id = %session_id,
-        "bff: ws chat upgrade — session validated"
+        "bff: ws chat upgrade - session validated"
     );
 
     ws.on_upgrade(move |socket| chat_connection(socket, session_id))
@@ -208,7 +208,7 @@ async fn chat_connection(socket: WebSocket, session_id: String) {
                         }
                         _ => {
                             // Chat frame (chat.message, chat.typing, etc.)
-                            // — forward to all participants in the
+                            // - forward to all participants in the
                             // conversation via the global room channel.
                             let conv_id =
                                 parsed["conversation_id"].as_str().unwrap_or("").to_string();

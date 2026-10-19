@@ -4,10 +4,10 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 -- ── BFF-5: push subscription sink (device tokens + local post outbox) ───
--- push_tokens: a session-bound device token registry — one token per
+-- push_tokens: a session-bound device token registry - one token per
 -- session; re-registering replaces it. The push bridge resolves the
 -- token per subscription event and forwards delivery to Post.
--- post_outbox: BFF's LOCAL post queue (DBX-POST-3) — the bridge drains
+-- post_outbox: BFF's LOCAL post queue (DBX-POST-3) - the bridge drains
 -- it to Post POST /v1/send (M2M bff-post, scope sentin8:post:write).
 -- No direct post.inbox writes; no cross-schema INSERT grant.
 
@@ -73,7 +73,7 @@ $fn$;
 -- GRANT-2 (D7 outbox pattern): the BFF service role runs these tables'
 -- DML through its own DSN (the drain loop SELECTs + UPDATEs pushed;
 -- push.rs INSERTs/DELETEs tokens; dcr.rs owns dcr_clients).
--- AFTER every table exists — GRANT on a not-yet-created table aborts the
+-- AFTER every table exists - GRANT on a not-yet-created table aborts the
 -- whole init migration on a fresh bootstrap.
 GRANT SELECT, INSERT, UPDATE, DELETE ON
     bff.push_tokens, bff.post_outbox, bff.dcr_clients

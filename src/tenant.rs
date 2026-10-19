@@ -3,13 +3,13 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! BFF tenant resolution —
+//! BFF tenant resolution -
 //!
 //! Resolves the tenant context (env_id, app_id) from:
-//! 1. TLS-injected `X-Sentin8-*` headers (primary —).
+//! 1. TLS-injected `X-Sentin8-*` headers (primary -).
 //! 2. Hostname parsing (legacy fallback for non-TLS local dev).
 //!
-//! `org_id` is no longer carried in TLS headers — it is resolved from
+//! `org_id` is no longer carried in TLS headers - it is resolved from
 //! `env_id` via `sentin8_sys_environments` when needed.
 //!
 //! Also loads the per-app scope whitelist from `sentin8_sys_app_instances`
@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 /// Tenant context resolved from TLS headers or hostname.
 ///
-/// `org_id` is deliberately absent — it is resolved from `env_id` via
+/// `org_id` is deliberately absent - it is resolved from `env_id` via
 /// `SELECT org_id FROM sys.environments WHERE id = $1` when needed.
 #[derive(Debug, Clone, Default)]
 pub struct TenantContext {
@@ -40,7 +40,7 @@ impl TenantContext {
     /// from the `TLSContext` middleware. Falls back to hostname parsing only
     /// when TLS headers are absent (local dev, not routed through TLS).
     ///
-    /// `X-Sentin8-Org-Id` is no longer read — `org_id` is resolved from
+    /// `X-Sentin8-Org-Id` is no longer read - `org_id` is resolved from
     /// `env_id` via `sentin8_sys_environments` when needed.
     pub fn from_headers(headers: &HeaderMap, host: &str) -> Self {
         let env_id = header_uuid(headers, &sentin8::middleware::context::HEADER_ENV_ID);
@@ -48,7 +48,7 @@ impl TenantContext {
 
         if env_id.is_some() || app_id.is_some() {
             // Platform BFF (e.g. bff.dash.{domain}, bff.ops.sys.{domain})
-            // is NOT an app BFF — it has full access to all platform
+            // is NOT an app BFF - it has full access to all platform
             // services (sys, auth, app).
             // Application BFF (e.g. bff.{app_domain}) is scoped to the
             // app's allowed services only.
@@ -156,14 +156,14 @@ impl AppScopeCache {
 }
 
 /// Load the per-app scope whitelist from `sys.app_instances`.
-/// No hardcoded app knowledge in the platform — all scopes come from the DB.
+/// No hardcoded app knowledge in the platform - all scopes come from the DB.
 async fn load_app_whitelist(
     pool: &sqlx::PgPool,
     app_id: Uuid,
 ) -> Result<AppScopeWhitelist, String> {
     // Runtime query (not `sqlx::query!` macro) so the build doesn't require
     // DATABASE_URL at compile time. Schema-qualified: the BFF role's
-    // search_path is `bff, public` (DBX ) — unqualified cross-schema
+    // search_path is `bff, public` (DBX ) - unqualified cross-schema
     // names fail at runtime.
     let row: Option<(Vec<String>, Vec<String>)> = sqlx::query_as(
         r#"SELECT
@@ -212,7 +212,7 @@ pub fn is_service_allowed(whitelist: &AppScopeWhitelist, service: &str) -> bool 
 /// admits the row only when `id = sentin8_current_env_id` (or the org
 /// of the current context). The context is transaction-local
 /// (`set_config(..., true)`), so the context-set and the SELECT must run
-/// in ONE explicit transaction on the SAME connection — on an autocommit
+/// in ONE explicit transaction on the SAME connection - on an autocommit
 /// connection the context evaporates before the query runs and FORCE RLS
 /// hides every row (the "token env not found in environments" class of
 /// 403s).
@@ -220,7 +220,7 @@ pub async fn resolve_org_id_from_env_id(pool: &sqlx::PgPool, env_id: &str) -> Op
     let uuid: Uuid = Uuid::parse_str(env_id).ok()?;
     let mut tx = pool.begin().await.ok()?;
     // The env_id comes from a TLS-injected header (trusted upstream) or a
-    // verified token claim — it IS the tenant context of this request.
+    // verified token claim - it IS the tenant context of this request.
     // is_platform_admin/bypass_rls stay false: the policy's `id =
     // current_env_id` branch alone admits the row.
     let _ = sqlx::query("SELECT sentin8_set_tenant_context($1, '', '', '', false, false)")
@@ -229,7 +229,7 @@ pub async fn resolve_org_id_from_env_id(pool: &sqlx::PgPool, env_id: &str) -> Op
         .await;
     // The context is set for the TARGET env (id = current_env_id branch);
     // the table name is schema-qualified because bff's role search_path is
-    // `bff, public` — `environments` exists only in the sys schema.
+    // `bff, public` - `environments` exists only in the sys schema.
     let org_id: Option<Uuid> =
         sqlx::query_scalar(r#"SELECT org_id FROM sys.environments WHERE id = $1"#)
             .bind(uuid)
@@ -247,17 +247,17 @@ pub async fn resolve_org_id_from_env_id(pool: &sqlx::PgPool, env_id: &str) -> Op
 /// name.
 ///
 /// The `/proxy/{service}/...` path segment carries the bare name (`auth`,
-/// `ledger`) — clients never see the colon identity. This maps the bare
+/// `ledger`) - clients never see the colon identity. This maps the bare
 /// name to the registered identity by trying, in order:
-/// 1. `sentin8:{service}` — the platform convention (auth → `sentin8:auth`).
-/// 2. The runtime registry (`sys.vertical_services`) — exact identity
+/// 1. `sentin8:{service}` - the platform convention (auth → `sentin8:auth`).
+/// 2. The runtime registry (`sys.vertical_services`) - exact identity
 ///
 /// match or bare-name suffix match (`bank8:ledger` when `ledger` is asked).
 ///
 /// Falls back to the legacy dash form (`sentin8-{service}`) when the
 /// registry is unreachable (dev bootstrapping).
 pub async fn resolve_service_identity(pool: &sqlx::PgPool, service: &str) -> String {
-    // Already canonical / contains the full form — normalize only.
+    // Already canonical / contains the full form - normalize only.
     if service.contains(':') {
         return sentin8::config::canonical_service_type(service);
     }
@@ -280,7 +280,7 @@ pub async fn resolve_service_identity(pool: &sqlx::PgPool, service: &str) -> Str
         None => {
             tracing::debug!(
                 service = %service,
-                "bff: no registry match for proxy service — assuming platform service"
+                "bff: no registry match for proxy service - assuming platform service"
             );
             platform
         }
@@ -307,11 +307,11 @@ const DOMAIN_CACHE_TTL: Duration = Duration::from_secs(300);
 /// the env domain, then constructs the service URL as `https://{svc}.{env_domain}`.
 /// Results are cached per env_id for 5 minutes.
 ///
-/// `org_id` is no longer read from headers — it is resolved from `env_id`
+/// `org_id` is no longer read from headers - it is resolved from `env_id`
 /// via the `sentin8_sys_environments` join inside `resolve_env_domain_from_db`.
 ///
 /// `service` may be a bare proxy-path name (`auth`, `ledger`) or the full
-/// colon identity (`sentin8:auth`, `bank8:ledger`) — both normalize via
+/// colon identity (`sentin8:auth`, `bank8:ledger`) - both normalize via
 /// the runtime registry. The colon identity is the canonical form
 /// ; use [`resolve_service_identity`] to
 /// obtain it from a bare name.
@@ -330,14 +330,14 @@ pub async fn resolve_env_service_url(
         .and_then(|s| Uuid::parse_str(s).ok());
 
     // Resolve the subdomain for this service from the runtime registry
-    // via the shared `sentin8-config` library — single source of truth.
+    // via the shared `sentin8-config` library - single source of truth.
     // resolve_subdomain normalizes to the canonical colon identity first.
     let cfg = sentin8::config::Sentin8Config::from_env();
     let subdomain = cfg.resolve_subdomain(pool, service).await;
 
     // Platform services resolve to the platform domain (ops/sys), regardless
     // of the tenant's org/env. Detected via the `vertical` column in the
-    // runtime registry — no hardcoded list.
+    // runtime registry - no hardcoded list.
     if cfg.is_platform_service(pool, service).await {
         return Some(format!("https://{}", cfg.platform_domain(&subdomain)));
     }
@@ -378,14 +378,14 @@ pub async fn resolve_env_service_url(
 
 /// Query `sentin8_sys_organizations.domain` and `sentin8_sys_environments.slug` to build
 /// the env domain (`{env_slug}.{org_domain}`). Mirrors the pattern used by
-/// `app` (handlers.rs:422-426) — reads the authoritative org domain
+/// `app` (handlers.rs:422-426) - reads the authoritative org domain
 /// from the DB rather than recomputing from the slug.
 ///
-/// `org_id` is resolved via the JOIN on `e.org_id = o.id` — no separate
+/// `org_id` is resolved via the JOIN on `e.org_id = o.id` - no separate
 /// org_id parameter is needed.
 async fn resolve_env_domain_from_db(pool: &sqlx::PgPool, env_id: Uuid) -> Option<String> {
     // Context-first read : set the TARGET
-    // env's RLS context inside the same transaction as the query —
+    // env's RLS context inside the same transaction as the query -
     // sys_environments_select admits `id = current_env_id`; sys
     // organizations/environments are also schema-qualified (bff
     // search_path = bff, public).

@@ -3,9 +3,9 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! SSE subscription stream — (SSE migration).
+//! SSE subscription stream - (SSE migration).
 //!
-//! `GET /subscribe` — Server-Sent Events stream for real-time push to apps.
+//! `GET /subscribe` - Server-Sent Events stream for real-time push to apps.
 //! Authenticated via the BFF session cookie. This is the **Subscriptions**
 //! tier of the three-tier client↔BFF transport model :
 //!
@@ -26,13 +26,13 @@
 //! data: {json payload}\n\n
 //! ```
 //!
-//! - `id` — opaque, monotonically increasing per stream. On reconnect,
+//! - `id` - opaque, monotonically increasing per stream. On reconnect,
 //! the client sends `Last-Event-ID: {id}` and BFF resumes after that
 //! cursor.
-//! - `event` — the event `type` from the catalog. Maps to the SSE event
+//! - `event` - the event `type` from the catalog. Maps to the SSE event
 //! field; clients can register per-type listeners via
 //! `EventSource.addEventListener(type, ...)`.
-//! - `data` — the JSON payload, single line.
+//! - `data` - the JSON payload, single line.
 //! - Heartbeats: BFF sends `: heartbeat\n\n` every 15s during idle
 //! periods to keep the HTTP/2 stream open and defeat idle proxy
 //! timeouts.
@@ -80,7 +80,7 @@ pub struct SubscriptionState {
     pub subscriptions: Arc<RwLock<HashSet<String>>>,
     /// Optional resource_id filter for page-scoped events.
     pub resource_id: Arc<RwLock<Option<String>>>,
-    /// Broadcast sender — events sent here are forwarded to the SSE stream.
+    /// Broadcast sender - events sent here are forwarded to the SSE stream.
     pub tx: broadcast::Sender<serde_json::Value>,
     /// Monotonic event ID counter for SSE `id:` field + Last-Event-ID.
     pub event_id: Arc<std::sync::atomic::AtomicU64>,
@@ -99,7 +99,7 @@ pub fn sub_map() -> SubMap {
         .clone()
 }
 
-/// `GET /subscribe` — open the SSE subscription stream.
+/// `GET /subscribe` - open the SSE subscription stream.
 ///
 /// Validates the BFF session cookie, parses `types` and `resource_id`
 /// query params, spawns the Bus consumer task, and returns a
@@ -121,7 +121,7 @@ pub async fn subscribe_handler(
         _ => return Err(axum::http::StatusCode::UNAUTHORIZED),
     };
 
-    // D2 — session→application binding : reject sessions
+    // D2 - session→application binding : reject sessions
     // created by another app instance.
     {
         let req_app = headers
@@ -132,7 +132,7 @@ pub async fn subscribe_handler(
             tracing::warn!(
                 session_app = ?sess.application_id,
                 request_app = ?req_app,
-                "bff: SSE subscribe REJECTED session — application binding mismatch"
+                "bff: SSE subscribe REJECTED session - application binding mismatch"
             );
             return Err(axum::http::StatusCode::UNAUTHORIZED);
         }
@@ -141,7 +141,7 @@ pub async fn subscribe_handler(
     tracing::info!(
         session_id = %session_id,
         user_id = %sess.user_id,
-        "bff: SSE subscribe — session validated"
+        "bff: SSE subscribe - session validated"
     );
 
     // Parse types from query param (convention-based validation).
@@ -271,14 +271,14 @@ pub async fn subscribe_handler(
                         return Some((Ok(sse_event), rx));
                     }
                     Err(broadcast::error::RecvError::Closed) => {
-                        // Channel closed — stream ends.
+                        // Channel closed - stream ends.
                         // Clean up the subscription state.
                         let mut guard = sub_map.write().await;
                         guard.remove(&session_id);
                         return None;
                     }
                     Err(broadcast::error::RecvError::Lagged(_)) => {
-                        // Skipped some events — continue.
+                        // Skipped some events - continue.
                         continue;
                     }
                 }
@@ -309,7 +309,7 @@ pub async fn push_event(session_id: &str, event: serde_json::Value) {
     }
     drop(map);
     // Push sink (BFF-5): a session with a registered device token ALSO
-    // receives the event through Post's push gateway — the bridge enqueues
+    // receives the event through Post's push gateway - the bridge enqueues
     // into BFF's local `post_outbox` and the bff-post pusher relays it.
     // Best-effort: a push enqueue failure never affects the SSE stream.
     if let Some(pool) = crate::subscribe::push::pool_handle() {

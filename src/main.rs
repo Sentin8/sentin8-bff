@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Sentin8 BFF — Backend for Frontend, server-side OAuth token guardian.
+//! Sentin8 BFF - Backend for Frontend, server-side OAuth token guardian.
 //!
 //! Boot runs on the platform `sentin8-shell` crate: registration flag,
 //! PQ provider, config, capped pool, PG18 check, state binding, OpenAPI
@@ -45,7 +45,7 @@ mod tenant;
 async fn main() -> anyhow::Result<()> {
     // Self-registration probe (self-registration ): `--print-registration`
     // prints the BFF's self-description (m2m_grants: bff-delegator) as JSON
-    // and exits — `vertical enroll` consumes it to provision
+    // and exits - `vertical enroll` consumes it to provision
     // `auth.m2m_scope_grants` for the Delegation Gateway identity.
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--print-registration") {

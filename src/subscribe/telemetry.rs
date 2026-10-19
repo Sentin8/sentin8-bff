@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Telemetry SSE fan-out — Tier 2 (Log/Stat `/v1/live`).
+//! Telemetry SSE fan-out - Tier 2 (Log/Stat `/v1/live`).
 //!
 //! Log and Stat expose `/v1/live` as SSE endpoints for high-volume
 //! telemetry (metric snapshots, graph snapshots, log entries). BFF
@@ -16,7 +16,7 @@
 //! amplification and Valkey Stream bloat).
 //!
 //! Design: (Two-Tier
-//! Sourcing Model — Tier 2)
+//! Sourcing Model - Tier 2)
 
 use std::sync::Arc;
 
@@ -52,10 +52,10 @@ pub fn spawn_telemetry_fanout(
         // 4. Push events to the session's broadcast channel.
         // 5. Reconnect on disconnect.
         //
-        // For now, this is a no-op — telemetry events arrive via Bus
+        // For now, this is a no-op - telemetry events arrive via Bus
         // (curated alerts) or internal tasks.
         tracing::info!(
-            "bff: telemetry SSE fan-out task started (no-op — Log/Stat /v1/live SSE proxy is future work)"
+            "bff: telemetry SSE fan-out task started (no-op - Log/Stat /v1/live SSE proxy is future work)"
         );
         std::future::pending::<()>().await;
     })

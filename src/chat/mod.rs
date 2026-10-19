@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Chat module — WebSocket chat tier.
+//! Chat module - WebSocket chat tier.
 //!
 //! This module implements the **Chat** tier of the three-tier
 //! client↔BFF transport model. It handles bidirectional, low-latency
@@ -13,8 +13,8 @@
 //!
 //! ## Submodules
 //!
-//! - `ws` — `GET /ws` WebSocket chat handler
-//! - `rooms` — Conversation join/leave + participant filtering
+//! - `ws` - `GET /ws` WebSocket chat handler
+//! - `rooms` - Conversation join/leave + participant filtering
 //!
 //! Design:
 

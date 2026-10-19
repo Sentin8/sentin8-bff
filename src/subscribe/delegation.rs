@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Delegation push — background CIBA poll task that pushes results over SSE.
+//! Delegation push - background CIBA poll task that pushes results over SSE.
 //!
 //! When a client calls `POST /delegate/start` and has an active SSE
 //! subscription (`GET /subscribe?types=sentin8:delegation.result`), BFF starts a
@@ -43,7 +43,7 @@ pub async fn start_delegation_poll(
             let form = vec![
                 (
                     "grant_type".to_string(),
-                    // RFC 9126 registered CIBA URN — must match the grant router in
+                    // RFC 9126 registered CIBA URN - must match the grant router in
                     // Sentin8:Auth (oauth.rs) and `ciba.rs` delegate_poll. The previous
                     // `urn:openid:params:...` name returned 400 unsupported_grant_type
                     // forever, so the delegated token was never minted.
@@ -53,7 +53,7 @@ pub async fn start_delegation_poll(
                 ("client_id".to_string(), oauth_client_id.clone()),
             ];
 
-            // — under `fapi_2` the CIBA grant requires a DPoP proof
+            // - under `fapi_2` the CIBA grant requires a DPoP proof
             // for non-exempt clients (same as ciba.rs delegate_poll).
             let dpop = match sentin8::auth::fapi::dpop_proof(
                 "POST",
@@ -116,7 +116,7 @@ pub async fn start_delegation_poll(
                     return;
                 }
                 // Unknown 400 (e.g. unsupported_grant_type / invalid_client)
-                // is a configuration defect, not a transient condition —
+                // is a configuration defect, not a transient condition -
                 // pushing a terminal error makes it visible instead of
                 // silently burning the whole retry budget.
                 push_event(
@@ -136,7 +136,7 @@ pub async fn start_delegation_poll(
                 continue;
             }
 
-            // Success — customer approved.
+            // Success - customer approved.
             let delegation_token = body["access_token"].as_str().unwrap_or("");
             let expires_in = body["expires_in"].as_u64().unwrap_or(300);
             let expires_at = chrono::Utc::now().timestamp() + expires_in as i64;
@@ -184,7 +184,7 @@ pub async fn start_delegation_poll(
             return;
         }
 
-        // Timed out — push expired.
+        // Timed out - push expired.
         push_event(
             &session_id,
             serde_json::json!({

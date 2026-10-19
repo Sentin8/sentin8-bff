@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Subscribe module — SSE subscription tier.
+//! Subscribe module - SSE subscription tier.
 //!
 //! This module implements the **Subscriptions** tier of the three-tier
 //! client↔BFF transport model:
@@ -14,10 +14,10 @@
 //!
 //! ## Submodules
 //!
-//! - `sse` — `GET /subscribe` SSE stream handler
-//! - `manager` — `POST /subscribe` / `DELETE /subscribe` lifecycle
-//! - `bus` — Tier 1: Bus SSE consumer (domain events)
-//! - `telemetry` — Tier 2: Log/Stat `/v1/live` SSE fan-out (future)
+//! - `sse` - `GET /subscribe` SSE stream handler
+//! - `manager` - `POST /subscribe` / `DELETE /subscribe` lifecycle
+//! - `bus` - Tier 1: Bus SSE consumer (domain events)
+//! - `telemetry` - Tier 2: Log/Stat `/v1/live` SSE fan-out (future)
 //!
 //! Design:
 
@@ -50,11 +50,11 @@ pub use sse::subscribe_handler;
 //
 // Two special families that the BFF manages internally (not Bus-sourced):
 //
-// `sentin8:delegation.*` — pushed by the BFF delegation polling task
-// `sentin8:bff.*` — pushed by the BFF session lifecycle task
+// `sentin8:delegation.*` - pushed by the BFF delegation polling task
+// `sentin8:bff.*` - pushed by the BFF session lifecycle task
 
 /// Known vertical prefixes (used for logging / telemetry, not for
-/// validation — unknown verticals are accepted as long as the format
+/// validation - unknown verticals are accepted as long as the format
 /// is correct). Always includes "sentin8". Additional verticals are
 /// loaded from Valkey (`captain:known_verticals` set) at startup by
 /// `load_known_verticals`.
@@ -82,13 +82,13 @@ pub const BFF_INTERNAL_TYPES: &[&str] = &[
 
 /// Event-type segments that are page-scoped (support `resource_id`
 /// filtering). Determined by the entity segment (the part after the
-/// service prefix), not the full event type — so any module can add a
+/// service prefix), not the full event type - so any module can add a
 /// page-scoped entity without registering it here.
 const PAGE_SCOPED_ENTITIES: &[&str] = &["account", "payment", "instruction", "consent", "user"];
 
 /// Check if an event type follows the `{vertical}:{service}:{resource}:{operation}` convention.
 ///
-/// This is a *format* check, not an allowlist — any vertical/service that
+/// This is a *format* check, not an allowlist - any vertical/service that
 /// follows the naming convention is accepted. The Bus itself enforces
 /// RBAC scopes and RLS tenant isolation on the server side.
 pub fn is_valid_event_type(event_type: &str) -> bool {
@@ -162,7 +162,7 @@ pub fn event_type_to_stream_family(event_type: &str) -> Option<&'static str> {
         "pos" => Some("pos"),
         "meta" => Some("meta"),
         "upsell" => Some("upsell"),
-        _ => None, // Unknown service — not Bus-sourced (BFF can't route it)
+        _ => None, // Unknown service - not Bus-sourced (BFF can't route it)
     }
 }
 

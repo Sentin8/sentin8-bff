@@ -3,7 +3,7 @@
 -- SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 -- SPDX-License-Identifier: Apache-2.0
 
--- Sentin8:BFF — Backend-for-Frontend DCR client registry.
+-- Sentin8:BFF - Backend-for-Frontend DCR client registry.
 -- Stores dynamically registered OAuth clients keyed by sentin8_auth_domain.
 
 CREATE SCHEMA IF NOT EXISTS bff;
@@ -23,9 +23,9 @@ CREATE TABLE IF NOT EXISTS bff.dcr_clients (
 
 CREATE INDEX IF NOT EXISTS idx_bff_dcr_clients_env ON bff.dcr_clients (env_id);
 
--- RLS (mandatory on every tenant data table — architecture-principles
+-- RLS (mandatory on every tenant data table - architecture-principles
 -- §4.3d). The SELECT policy additionally admits the
--- platform plane (system env) — same shape as sys_services_select.
+-- platform plane (system env) - same shape as sys_services_select.
 ALTER TABLE bff.dcr_clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bff.dcr_clients FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS bff_dcr_clients_select ON bff.dcr_clients;
@@ -52,7 +52,7 @@ CREATE POLICY bff_dcr_clients_delete ON bff.dcr_clients FOR DELETE
 -- sentin8_app_service: DML on bff tables (no dedicated sentin8_bff_service role).
 GRANT SELECT, INSERT, UPDATE, DELETE ON bff.dcr_clients TO sentin8_app_service;
 
--- ── Schema grants (service-owned — the 2026-10-03 ownership pass) ─────
+-- ── Schema grants (service-owned - the 2026-10-03 ownership pass) ─────
 -- This service's own schema: USAGE for its role (platform.sql no longer
 -- seeds per-service USAGE; the service declares it here).
 GRANT USAGE ON SCHEMA bff TO sentin8_bff_service;

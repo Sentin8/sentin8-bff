@@ -3,11 +3,11 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Subscription lifecycle management — `POST /subscribe` and `DELETE /subscribe`.
+//! Subscription lifecycle management - `POST /subscribe` and `DELETE /subscribe`.
 //!
 //! These are normal HTTP/2 mutations (the Queries & Mutations tier) that
 //! modify the active session's subscription set. The SSE stream (`GET
-//! /subscribe`) reflects changes in real time — no reconnect needed.
+//! /subscribe`) reflects changes in real time - no reconnect needed.
 //!
 //! Design:
 
@@ -44,7 +44,7 @@ pub struct SubscriptionResponse {
     pub resource_id: Option<String>,
 }
 
-/// `POST /subscribe` — add/remove/replace event types on the active
+/// `POST /subscribe` - add/remove/replace event types on the active
 /// session's subscription set.
 pub async fn subscribe_change(
     State(state): State<AppState>,
@@ -68,7 +68,7 @@ pub async fn subscribe_change(
     let sub_state = match map.get(&session_id) {
         Some(s) => s.clone(),
         None => {
-            // No active SSE stream — the client must open one first.
+            // No active SSE stream - the client must open one first.
             return Err(StatusCode::CONFLICT);
         }
     };
@@ -125,7 +125,7 @@ pub async fn subscribe_change(
     }))
 }
 
-/// `DELETE /subscribe` — close the SSE stream and clear the session's
+/// `DELETE /subscribe` - close the SSE stream and clear the session's
 /// subscription set.
 pub async fn subscribe_close(
     State(state): State<AppState>,
@@ -142,7 +142,7 @@ pub async fn subscribe_close(
         _ => return Err(StatusCode::UNAUTHORIZED),
     }
 
-    // Remove the subscription state — the SSE stream will detect the
+    // Remove the subscription state - the SSE stream will detect the
     // removal (broadcast channel dropped) and end.
     let map = crate::subscribe::sse::sub_map();
     let mut map = map.write().await;
@@ -170,7 +170,7 @@ fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
 /// Request body of `POST /subscribe/push`.
 #[derive(Debug, Deserialize)]
 pub struct PushRegisterRequest {
-    /// The device token issued by the platform push provider (FCM/APNs —
+    /// The device token issued by the platform push provider (FCM/APNs -
     /// opaque to the BFF; forwarded to Post's push gateway).
     pub device_token: String,
 }
@@ -182,7 +182,7 @@ pub struct PushRegisterResponse {
     pub registered: bool,
 }
 
-/// `POST /subscribe/push` — register a device token for the session
+/// `POST /subscribe/push` - register a device token for the session
 /// (BFF-5). Subscription events for this session are bridged to Post's
 /// push gateway through the local post_outbox + bff-post pusher.
 pub async fn subscribe_push_register(
@@ -218,7 +218,7 @@ pub async fn subscribe_push_register(
     Ok(Json(PushRegisterResponse { registered: true }))
 }
 
-/// `DELETE /subscribe/push` — remove the session's push registration.
+/// `DELETE /subscribe/push` - remove the session's push registration.
 pub async fn subscribe_push_delete(
     State(state): State<AppState>,
     headers: HeaderMap,

@@ -8,18 +8,18 @@
 //! `POST /subscribe/push` (session-bound); the bridge task forwards every
 //! subscription event for that session to Sentin8:Post's `POST /v1/send`
 //! (M2M `bff-post`, scope `sentin8:post:write`) as a `push`-channel
-//! message — Post's gateway adapter delivers it (stub today, real FCM/
+//! message - Post's gateway adapter delivers it (stub today, real FCM/
 //! APNs adapters drop in behind the same contract, POST-4).
 //!
 //! Delivery rides the DBX pattern: the bridge enqueues into BFF's LOCAL
 //! `post_outbox` and the `bff-post` pusher drains it (no direct
-//! `post.inbox` writes — the producer holds no grant on Post's tables).
+//! `post.inbox` writes - the producer holds no grant on Post's tables).
 
 use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Register (or replace) a device token for the caller's session. One
-/// token per session — re-registering replaces it.
+/// token per session - re-registering replaces it.
 pub async fn register_push_token(
     pool: &PgPool,
     env_id: Uuid,
@@ -136,7 +136,7 @@ pub async fn push_token_for_session(
 pub fn spawn_push_bridger(pool: PgPool, post_url: String, auth_issuer: String) {
     tokio::spawn(async move {
         // auth DESIGN §4.3f: the `bff-post` CERTIFICATE is the
-        // identity — ensure it once (mint retries while Acme comes up),
+        // identity - ensure it once (mint retries while Acme comes up),
         // then build the ONE cert-presenting client for the task
         // lifetime. No token exists on this path.
         let cert = loop {
@@ -162,7 +162,7 @@ pub fn spawn_push_bridger(pool: PgPool, post_url: String, auth_issuer: String) {
         let client = match sentin8::middleware::mtls::build_mtls_client(&mtls) {
             Ok(c) => c,
             Err(e) => {
-                tracing::warn!(error = %e, "bff: post push transport build failed — bridge disabled");
+                tracing::warn!(error = %e, "bff: post push transport build failed - bridge disabled");
                 return;
             }
         };
@@ -251,10 +251,10 @@ async fn drain_and_push(
                     pushed += n as usize;
                 }
                 Ok(r) => {
-                    tracing::warn!(status = %r.status(), message_id = %id, "bff: post push send rejected — will retry");
+                    tracing::warn!(status = %r.status(), message_id = %id, "bff: post push send rejected - will retry");
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, message_id = %id, "bff: post push send failed — will retry");
+                    tracing::warn!(error = %e, message_id = %id, "bff: post push send failed - will retry");
                 }
             }
             if pushed >= 100 {

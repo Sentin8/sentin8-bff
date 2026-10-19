@@ -28,7 +28,7 @@ pub async fn serve(
 ) -> anyhow::Result<()> {
     let store = SessionStore::new(&config.valkey_url, config.session_idle_ttl).await?;
     // KeyRing rotation (bff DESIGN §6.2): spawn the session re-wrap task
-    // when retained keys are configured — old-key blobs are re-encrypted
+    // when retained keys are configured - old-key blobs are re-encrypted
     // under the current key in the background.
     if !config.retained_encryption_keys.is_empty() {
         crate::key_rotation::spawn_session_rewrap(
@@ -44,15 +44,15 @@ pub async fn serve(
         .expect("PostgreSQL 18+ required");
 
     // auth DESIGN §4.3f: the `bff-delegator` CERTIFICATE is
-    // the identity — ensured (load-or-mint from Acme) in the background;
+    // the identity - ensured (load-or-mint from Acme) in the background;
     // the Delegation Gateway presents it on every call. The old
     // env-credential override (`SENTIN8_BFF_M2M_CLIENT_ID/SECRET`) is
     // retired with the workload M2M token it fed.
     register_delegator_m2m_client(&config).await;
 
-    // ── Sentin8:Policy (— boot_full): bff is a custom-boot
+    // ── Sentin8:Policy (- boot_full): bff is a custom-boot
     // binary (cookie sessions, no shell serve), so it runs the ONE shared
-    // boot helper itself — same four steps the shell runs for every other
+    // boot helper itself - same four steps the shell runs for every other
     // service. No second engine may be constructed.
     let policy_engine = sentin8::shield::runtime::engine_for("sentin8:bff");
     sentin8::shield::runtime::boot_full(
@@ -85,7 +85,7 @@ pub async fn serve(
     // subscribes to the `auth` stream family and kills cached BFF
     // sessions for subjects whose Auth sessions/tokens were revoked
     // (`sentin8:auth:session:revoked`, group `bff-session-reaper`).
-    // Spawned before the states are moved into the router — the store
+    // Spawned before the states are moved into the router - the store
     // and bus client are shared clones, not move-outs.
     subscribe::session_revocation::spawn(
         app_state.sentin8_bus_consumer_client.clone(),
@@ -93,7 +93,7 @@ pub async fn serve(
     );
 
     // Push subscription sink (BFF-5): the bff-post pusher drains BFF's local
-    // `post_outbox` to Post's send API (M2M, `sentin8:post:write`) — no
+    // `post_outbox` to Post's send API (M2M, `sentin8:post:write`) - no
     // direct post.inbox writes. Identity + token source resolve lazily on
     // the first pass (a boot-time DCR failure only delays the drain; rows
     // stay queued).
@@ -109,7 +109,7 @@ pub async fn serve(
 
     // Backend service URLs are resolved dynamically per-request from the
     // request hostname (which encodes the tenant env domain). BFF serves
-    // multiple tenants — each at `bff.{env_domain}` — so the backend URL
+    // multiple tenants - each at `bff.{env_domain}` - so the backend URL
     // for service X is `https://{svc}.{env_domain}`. This ensures all
     // traffic goes through TLS with the correct tenant context.
     let proxy_state = Arc::new(ProxyState {
@@ -154,17 +154,17 @@ pub async fn serve(
             "/v1/auth/sessions/{id}",
             get(sessions::get_session).delete(sessions::revoke_session),
         )
-        // Generic service action proxy — forwards to any registered
+        // Generic service action proxy - forwards to any registered
         // service action (registered via `sentin8-cli vertical enroll`).
         // The frontend calls POST /bff/action/{action} with a JSON body;
         // BFF looks up the target URL/method from the registry and proxies.
         .route("/bff/action/{action}", post(handlers::service_action))
-        // Delegation Gateway — replaces CIBA endpoints
+        // Delegation Gateway - replaces CIBA endpoints
         .route("/delegate/start", post(ciba::delegate_start))
         .route("/delegate/poll", post(ciba::delegate_poll))
         .route("/delegate/status", get(ciba::delegate_status))
         .route("/delegate/send-link", post(ciba::delegate_send_link))
-        // SCIM proxy — full SCIM 2.0 operations proxied to env-scoped Auth
+        // SCIM proxy - full SCIM 2.0 operations proxied to env-scoped Auth
         .route(
             "/delegate/scim/users",
             get(ciba::delegate_scim_list).post(ciba::delegate_scim_create),
@@ -176,7 +176,7 @@ pub async fn serve(
                 .patch(ciba::delegate_scim_patch)
                 .delete(ciba::delegate_scim_delete),
         )
-        // SSE subscription tier — (SSE migration)
+        // SSE subscription tier - (SSE migration)
         // GET /subscribe opens the SSE stream; POST/DELETE manage the
         // subscription set via HTTP/2 mutations.
         .route(
@@ -185,14 +185,14 @@ pub async fn serve(
                 .post(subscribe::subscribe_change)
                 .delete(subscribe::subscribe_close),
         )
-        // Push subscription sink (BFF-5): session-bound device-token registry —
+        // Push subscription sink (BFF-5): session-bound device-token registry -
         // subscription events bridge to Post's push gateway via the local
         // post_outbox + bff-post pusher.
         .route(
             "/subscribe/push",
             post(subscribe::subscribe_push_register).delete(subscribe::subscribe_push_delete),
         )
-        // WebSocket chat tier — (chat-only)
+        // WebSocket chat tier - (chat-only)
         .route("/ws", get(chat::ws_handler))
         .route("/audit", post(handlers::audit_event))
         .route("/v1/health", get(handlers::health))
@@ -208,7 +208,7 @@ pub async fn serve(
         .merge(auth_routes)
         .fallback(axum::routing::any(crate::proxy::proxy))
         .with_state(proxy_state)
-        // Traffic counter — counts every inbound request (excludes health checks).
+        // Traffic counter - counts every inbound request (excludes health checks).
         .layer(axum::middleware::from_fn_with_state(
             counter,
             sentin8::middleware::traffic_counter_layer,
@@ -252,10 +252,10 @@ pub async fn serve(
                     axum::http::HeaderName::from_static("x-sentin8-correlation-id"),
                     axum::http::HeaderName::from_static("x-bff-target-org-id"),
                     axum::http::HeaderName::from_static("x-bff-target-env-id"),
-                    // Option A — CIBA delegation attach.
+                    // Option A - CIBA delegation attach.
                     // Missing here made every delegated app call fail the
                     // CORS preflight at the browser (TypeError: Failed to
-                    // fetch) — .
+                    // fetch) - .
                     axum::http::HeaderName::from_static("x-bff-delegation"),
                     axum::http::HeaderName::from_static("authorization"),
                 ])
@@ -264,7 +264,7 @@ pub async fn serve(
 
     tracing::info!("bff listening on {addr}");
 
-    // Spawn the stat rollups Valkey subscriber — replaces the Bus
+    // Spawn the stat rollups Valkey subscriber - replaces the Bus
     // stat.traffic.snapshot path. Listens to `stat:rollups:minute`
     // and pushes to all active SSE sessions subscribed to
     // `stat.traffic.snapshot`.
@@ -280,11 +280,11 @@ pub async fn serve(
 /// background task that retries DCR until Auth is reachable (which
 /// requires the TLS listener to be serving). When DCR succeeds, the
 /// auth DESIGN §4.3f: ensure the `bff-delegator` workload
-/// CERTIFICATE (load-or-mint from Acme — the certificate IS the identity;
+/// CERTIFICATE (load-or-mint from Acme - the certificate IS the identity;
 /// no DCR, no M2M token) and install the cert paths + the mTLS auth
 /// client for the Delegation Gateway. Delegation calls present the
 /// certificate; the delegated JWT flow (RFC 8693) keeps its own tokens.
-/// The mint retries while Acme comes up — the gateway degrades until the
+/// The mint retries while Acme comes up - the gateway degrades until the
 /// identity exists, then heals without a restart.
 async fn register_delegator_m2m_client(config: &Bff8Config) {
     let ca_cert_path = sentin8::auth::m2m::platform_ca_path();
@@ -305,7 +305,7 @@ async fn register_delegator_m2m_client(config: &Bff8Config) {
                         cert.key_path.clone(),
                         ca_cert_path.clone(),
                     );
-                    // — delegation calls must present the client cert.
+                    // - delegation calls must present the client cert.
                     crate::proxy::install_mtls_auth_client(
                         &bg_auth_client,
                         &cert.cert_path,

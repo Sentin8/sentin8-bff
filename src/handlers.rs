@@ -5,7 +5,7 @@
 
 //! HTTP handlers for BFF session management and auth callbacks.
 //!
-//!–, , , .
+//!-, , , .
 
 use std::sync::Arc;
 
@@ -29,14 +29,14 @@ pub struct AppState {
     pub pool: sqlx::PgPool,
     /// Bus client for the WS consumer (M2M token with bus:consume scope).
     pub sentin8_bus_consumer_client: sentin8::bus::client::BusClient,
-    /// Shield engine ( — ): additional gate for admin
+    /// Shield engine ( - ): additional gate for admin
     /// endpoints (the proxy data path stays scope-gated; no policy on hot path).
     pub policy: Arc<crate::policy::Engine>,
 }
 
 // ── Auth login ──────────────────────────────────────────────────────────
 
-/// `GET /auth/login` — redirect to Auth `/oauth/authorize` with PKCE.
+/// `GET /auth/login` - redirect to Auth `/oauth/authorize` with PKCE.
 ///
 ///: Initiates the OAuth code flow.
 pub async fn auth_login(
@@ -56,7 +56,7 @@ pub async fn auth_login(
         .get("x-sentin8-env-id")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    // org_id is no longer in TLS headers — resolve from env_id via DB.
+    // org_id is no longer in TLS headers - resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
         crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
@@ -101,7 +101,7 @@ pub async fn auth_login(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     let app_frontend_url = derive_app_frontend_url(hostname, &state.config.sentin8_domain);
-    // Check for a custom domain (e.g. www.ibank.local) — if set, use that
+    // Check for a custom domain (e.g. www.ibank.local) - if set, use that
     // instead of the derived app hostname for the post-login redirect.
     let custom_domain_url = resolve_app_custom_domain(&state, &org_id, env_id, hostname).await;
     let oauth_state = if !custom_domain_url.is_empty() {
@@ -170,7 +170,7 @@ pub async fn auth_login(
     // carries the app's required scopes (e.g. `fdx:recipient:read`). Auth
     // UNIONS requested scopes into the access token (see auth
     // `merge_scopes`), so requesting them here is what places them in the
-    // session token — the FDX recipient API then authorizes on them.
+    // session token - the FDX recipient API then authorizes on them.
     let scope_string = if !q.scope.is_empty() {
         q.scope.clone()
     } else {
@@ -215,7 +215,7 @@ pub struct LoginQuery {
     pub state: String,
 }
 
-/// `GET /auth/sign-up` — redirect to Auth `/sign-up` page.
+/// `GET /auth/sign-up` - redirect to Auth `/sign-up` page.
 ///
 /// Apps like eBank redirect here to initiate customer sign-up.
 /// We simply forward to the Auth hosted sign-up page with the same
@@ -237,7 +237,7 @@ pub async fn auth_sign_up(
         .get("x-sentin8-env-id")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    // org_id is no longer in TLS headers — resolve from env_id via DB.
+    // org_id is no longer in TLS headers - resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
         crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
@@ -278,7 +278,7 @@ pub async fn auth_sign_up(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     let app_frontend_url = derive_app_frontend_url(hostname, &state.config.sentin8_domain);
-    // Check for a custom domain (e.g. www.ibank.local) — if set, use that
+    // Check for a custom domain (e.g. www.ibank.local) - if set, use that
     // instead of the derived app hostname for the post-signup redirect.
     let custom_domain_url = resolve_app_custom_domain(&state, &org_id, env_id, hostname).await;
     let oauth_state = if !custom_domain_url.is_empty() {
@@ -373,7 +373,7 @@ pub async fn auth_sign_up(
 /// DCR-registered client ID for this instance (empty → use BFF's global client).
 /// Uses the Sys HTTP API `GET /v1/app-instance/auth-mode`.
 pub(crate) struct AppAuthInfo {
-    /// The instance's auth_domain (staff mode) — empty when env-scoped.
+    /// The instance's auth_domain (staff mode) - empty when env-scoped.
     pub auth_domain: String,
     /// The app-instance OAuth client at the instance's auth env
     /// (sign-in flows).
@@ -449,7 +449,7 @@ async fn resolve_tenant_sentin8_auth_url(
         }
         Some(e) => e,
     };
-    // org_id is no longer in TLS headers — resolve from env_id via DB.
+    // org_id is no longer in TLS headers - resolve from env_id via DB.
     let org_id = crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
         .await
         .map(|id| id.to_string())
@@ -462,7 +462,7 @@ async fn resolve_tenant_sentin8_auth_url(
         tracing::info!("bff: system org/env detected, using platform auth");
         return Ok(state.config.sentin8_auth_base_url.clone());
     }
-    // Tenant headers present — resolve the env's auth domain from Sys.
+    // Tenant headers present - resolve the env's auth domain from Sys.
     // Fail fast on any error: silently falling back to the platform
     // `auth.{sentin8_domain}` caused tenant logins to land on the wrong auth.
     let sentin8_sys_url = format!(
@@ -470,7 +470,7 @@ async fn resolve_tenant_sentin8_auth_url(
         state.config.sentin8_sys_base_url.trim_end_matches('/'),
         env_id
     );
-    // BFF-only surface — present the delegator CERTIFICATE identity
+    // BFF-only surface - present the delegator CERTIFICATE identity
     // (the transport authenticates at Sys's TLS layer).
     let client = crate::proxy::get_sentin8_bff_m2m_token(&state.config)
         .await
@@ -616,7 +616,7 @@ async fn resolve_app_instance(state: &AppState, headers: &HeaderMap) -> Option<A
             Ok(data) => {
                 let application_id = data["application_id"].as_str().unwrap_or("").to_string();
                 if application_id.is_empty() {
-                    // No instance matched — platform BFF (Dash) bootstrap.
+                    // No instance matched - platform BFF (Dash) bootstrap.
                     return None;
                 }
                 Some(AppInstanceInfo {
@@ -645,7 +645,7 @@ async fn resolve_app_instance(state: &AppState, headers: &HeaderMap) -> Option<A
     }
 }
 
-/// OWNER API client for session enrichment (DBX — no auth.* grants):
+/// OWNER API client for session enrichment (DBX - no auth.* grants):
 /// resolves the caller's profile, roles, groups, and LIVE effective scopes
 /// from Auth's `GET /oauth/userinfo` using the session's own user access
 /// token as the bearer. Auth verifies the token server-side (SEC-).
@@ -672,28 +672,28 @@ async fn auth_userinfo(state: &AppState, user_token: &str) -> Result<serde_json:
         .map_err(|e| format!("decode: {e}"))
 }
 
-/// D3 — auth-env match. The token's env must belong to the
+/// D3 - auth-env match. The token's env must belong to the
 /// instance's org. When the instance uses a dedicated `auth_domain`
 /// (staff-auth apps like eTeller via `auth.staff.{org_domain}`), the token
-/// env must BE the auth env — a prod-env customer token is rejected.
+/// env must BE the auth env - a prod-env customer token is rejected.
 ///
 /// The auth env is resolved from the auth_domain hostname pattern
 /// `auth.{env_slug}.{org_domain}` (see app setup_instance). When the
 /// auth_domain is empty (customer apps), only the org match is enforced
 /// (the app uses the install env's Auth, so a same-org foreign-env token
-/// is still rejected by the group gate — the app group lives in the
+/// is still rejected by the group gate - the app group lives in the
 /// install env).
 async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id: &str) -> bool {
     let token_env: uuid::Uuid = match uuid::Uuid::parse_str(token_env_id) {
         Ok(u) => u,
         Err(_) => return false,
     };
-    // Instance env parse — a malformed instance env_id means we cannot
+    // Instance env parse - a malformed instance env_id means we cannot
     // establish the tenant relationship; fail-closed unless auth_domain
     // is also empty (platform bootstrap).
     let inst_env_ok = uuid::Uuid::parse_str(&inst.env_id).is_ok();
     if !inst_env_ok && !inst.auth_domain.is_empty() {
-        tracing::warn!(instance_env = %inst.env_id, "bff: invalid instance env_id — rejecting");
+        tracing::warn!(instance_env = %inst.env_id, "bff: invalid instance env_id - rejecting");
         return false;
     }
     // Org match first: the token env must belong to the instance's org.
@@ -716,7 +716,7 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
     }
     // Staff-auth app (auth_domain set): token env must be the auth env.
     if !inst.auth_domain.is_empty() {
-        // auth_domain looks like auth.{env_slug}.{org_domain} — resolve the
+        // auth_domain looks like auth.{env_slug}.{org_domain} - resolve the
         // env whose Auth hostname matches. The app service resolves it the
         // same way at install (matching auth.{env_slug}.{org.domain}).
         let org: uuid::Uuid = match uuid::Uuid::parse_str(&inst.org_id) {
@@ -728,7 +728,7 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
         };
         // Context-first reads : the org-wide
         // branch of sys_environments_select admits rows only when the
-        // context's env belongs to that org — set the token env's context
+        // context's env belongs to that org - set the token env's context
         // (the verified tenant of this request) in the same transaction.
         // Both resolution queries (hostname-pattern + slug fallback) run on
         // that one transaction connection.
@@ -798,10 +798,10 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
                 false
             }
             None => {
-                // Cannot resolve the auth env from the auth_domain —
+                // Cannot resolve the auth env from the auth_domain -
                 // fail-closed: refuse the session rather than mint one
                 // against an unverifiable auth environment.
-                tracing::warn!(auth_domain = %inst.auth_domain, "bff: cannot resolve auth env from auth_domain — rejecting");
+                tracing::warn!(auth_domain = %inst.auth_domain, "bff: cannot resolve auth env from auth_domain - rejecting");
                 false
             }
         }
@@ -810,18 +810,18 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
     }
 }
 
-/// F-A — app-group membership gate. How strictly the gate
+/// F-A - app-group membership gate. How strictly the gate
 /// applies is a declarative property of the instance itself
 /// (`app_instances.group_gate`, resolved via Sys auth-mode):
 ///
 /// - `strict` (default, every app instance): the user must be a member of
 ///
 /// the instance's `sentin8:app:{instance_id}` group in the token's
-/// auth env — fail-closed. Customer apps never see the gate (users are
+/// auth env - fail-closed. Customer apps never see the gate (users are
 /// auto-added at sign-up); staff apps enforce explicit membership (the
 ///
 /// "Ben must not silently become a teller" rule).
-/// - `self_service`: authentication itself is the authorization — any user
+/// - `self_service`: authentication itself is the authorization - any user
 ///
 /// who completed the OAuth flow (and passed the D3 auth-env check in the
 /// caller) obtains a session. Used for first-party platform surfaces
@@ -833,7 +833,7 @@ async fn auth_env_matches(state: &AppState, inst: &AppInstanceInfo, token_env_id
 ///
 /// Note: the group catalog is env-scoped (`groups.env_id`); the
 /// group lives in the app's AUTH env (staff groups in the staff env,
-/// customer groups in the install env — see app setup_instance). We query
+/// customer groups in the install env - see app setup_instance). We query
 /// by the token's env: the token was just validated to come from the
 /// auth env (D3), so the group must exist there.
 async fn check_app_group_membership(
@@ -843,20 +843,20 @@ async fn check_app_group_membership(
     user_id: &str,
 ) -> Result<(), String> {
     // Group name mirrors app setup_instance: sentin8:app:{instance_id}
-    // ( — the name embeds the instance UUID; the display-name-derived
-    // snake_case form is retired — its three implementations had drifted,
+    // ( - the name embeds the instance UUID; the display-name-derived
+    // snake_case form is retired - its three implementations had drifted,
     // AUTH-3).
     if inst.application_id.is_empty() {
         return Ok(()); // nothing to gate on (should not happen)
     }
     let group_name = format!("sentin8:app:{}", inst.application_id);
-    // Declarative gate mode — data on the instance, never app-specific
+    // Declarative gate mode - data on the instance, never app-specific
     // knowledge in the BFF. Unknown/missing values default to
     // 'strict' (fail-closed) for instances provisioned before the column.
     if inst.group_gate == "self_service" {
         tracing::debug!(
             group = %group_name,
-            "bff: gate mode self_service — authentication + D3 suffice"
+            "bff: gate mode self_service - authentication + D3 suffice"
         );
         return Ok(());
     }
@@ -872,13 +872,13 @@ async fn check_app_group_membership(
     // - Group MISSING in the token's auth env → allow with a warning. All
     // platform apps now provision their group (Dash is seeded in
     // sys init SQL; app instances at install time via app
-    // setup_instance) — so a missing group means an unregistered/legacy
+    // setup_instance) - so a missing group means an unregistered/legacy
     // install, not an intended exception. Keeping allow here avoids
     // bricking sign-in if provisioning raced or was skipped; the
     // warn makes it visible.
     // - Group EXISTS but the user is not a member → reject (fail-closed).
     // Same-transaction context (rule 2): `auth.groups` is FORCE-RLS'd with
-    // a `sentin8_context_initialized()` gate — both lookups run inside ONE
+    // a `sentin8_context_initialized()` gate - both lookups run inside ONE
     // explicit transaction with the token env's context set on the same
     // connection (a bare-pool read sees zero rows: the gate silently
     // skipped for EVERY app and the customer auto-add never fired).
@@ -924,17 +924,17 @@ async fn check_app_group_membership(
         (ge, m)
     };
     if !group_exists {
-        tracing::info!(group = %group_name, "bff: app group not provisioned — gate skipped (legacy/platform app)");
+        tracing::info!(group = %group_name, "bff: app group not provisioned - gate skipped (legacy/platform app)");
         return Ok(());
     }
     if member {
         Ok(())
     // F-A customer auto-add (BFF design): a first-party CUSTOMER app
     // (no dedicated staff auth_domain) must never lock out the user who
-    // just completed its own OAuth consent — add the member on the spot
+    // just completed its own OAuth consent - add the member on the spot
     // through Auth's provisioning API (`sentin8:auth:admin:write`, the
     // `bff-provision` workload; no direct auth-table writes). STAFF apps
-    // (auth_domain set) keep the fail-closed membership requirement — an
+    // (auth_domain set) keep the fail-closed membership requirement - an
     // org-admin who is not a teller can never obtain a teller session.
     } else if inst.auth_domain.is_empty() {
         match crate::auth_provision::Provisioner::shared().await {
@@ -948,14 +948,14 @@ async fn check_app_group_membership(
                     Ok(())
                 }
                 Err(e) => {
-                    tracing::warn!(error = %e, group = %group_name, "bff: customer auto-add failed — denying (fail-closed)");
+                    tracing::warn!(error = %e, group = %group_name, "bff: customer auto-add failed - denying (fail-closed)");
                     Err(format!(
                         "not a member of this app ({group_name}) and auto-add failed"
                     ))
                 }
             },
             None => {
-                tracing::warn!(group = %group_name, "bff: auth provisioner unavailable — denying (fail-closed)");
+                tracing::warn!(group = %group_name, "bff: auth provisioner unavailable - denying (fail-closed)");
                 Err(format!("not a member of this app ({group_name})"))
             }
         }
@@ -969,8 +969,8 @@ async fn check_app_group_membership(
 /// Process-global DPoP signing key (ES256 P-256, PKCS#8 PEM).
 ///
 /// Generated once per process on first use. Sentin8:Auth verifies DPoP
-/// proofs against the `jwk` embedded in the proof header — self-contained,
-/// no key registration — so an ephemeral per-process keypair is correct:
+/// proofs against the `jwk` embedded in the proof header - self-contained,
+/// no key registration - so an ephemeral per-process keypair is correct:
 /// every proof the BFF signs during its lifetime verifies, and restarts
 /// simply rotate the key (old tokens already carry their `cnf.jkt`).
 pub(crate) fn dpop_key_pem() -> String {
@@ -980,11 +980,11 @@ pub(crate) fn dpop_key_pem() -> String {
         sentin8::auth::fapi::generate_dpop_key_pem()
             .map_err(|e| e.to_string())
             .inspect_err(|e| {
-                tracing::error!(error = %e, "bff: DPoP key generation failed — DPoP-required exchanges will fail");
+                tracing::error!(error = %e, "bff: DPoP key generation failed - DPoP-required exchanges will fail");
             })
     }) {
         Ok(pem) => pem.clone(),
- // Unreachable in practice — keygen only fails on RNG/serialization
+ // Unreachable in practice - keygen only fails on RNG/serialization
  // errors. Fail loud: an empty key would send an invalid proof.
         Err(e) => panic!("DPoP key generation failed: {e}"),
     }
@@ -992,7 +992,7 @@ pub(crate) fn dpop_key_pem() -> String {
 
 // ── Auth callback ────────────────────────────────────────────────────────
 
-/// `GET /auth/callback` — OAuth code exchange, session creation, cookie set.
+/// `GET /auth/callback` - OAuth code exchange, session creation, cookie set.
 ///
 ///: Exchanges the auth code for tokens (server-side), creates
 /// an encrypted session in Valkey, sets the `__Host-bff-session` cookie.
@@ -1013,7 +1013,7 @@ pub async fn auth_callback(
         .get("x-sentin8-env-id")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    // org_id is no longer in TLS headers — resolve from env_id via DB.
+    // org_id is no longer in TLS headers - resolve from env_id via DB.
     let org_id = if !env_id.is_empty() {
         crate::tenant::resolve_org_id_from_env_id(&state.pool, env_id)
             .await
@@ -1037,7 +1037,7 @@ pub async fn auth_callback(
     }
 
     // Exchange the code for tokens at Auth.
-    // Resolve the same auth URL that the login handler used — if the app
+    // Resolve the same auth URL that the login handler used - if the app
     // instance has an auth_domain set, use it; otherwise fall back to the
     // env-scoped Auth URL.
     let info = resolve_app_auth_info(&state, &headers).await;
@@ -1074,11 +1074,11 @@ pub async fn auth_callback(
         state.config.oauth_client_id.clone()
     };
 
-    // — exchange via the fapiclient SDK, which
+    // - exchange via the fapiclient SDK, which
     // discovery-drives the token endpoint and attaches a DPoP proof when
     // `dpop_signing_alg_values_supported` is advertised. Under the `fapi_2`
     // platform profile, DPoP is REQUIRED for user-facing grants on every
-    // non-exempt client — all DCR-registered app-instance clients — so a
+    // non-exempt client - all DCR-registered app-instance clients - so a
     // plain form POST gets `401 DPoP proof required for this grant`. The
     // BFF holds its own ES256 key (startup-generated, in-process); Auth
     // verifies proofs against the embedded `jwk` and binds `cnf.jkt`.
@@ -1115,7 +1115,7 @@ pub async fn auth_callback(
         .await;
 
     // fapiclient's TokenResponse → the callback's internal shape (id_token
-    // is not consumed here — the session stores access/refresh only).
+    // is not consumed here - the session stores access/refresh only).
     let token_data: TokenExchangeResponse = match exchange_result {
         Ok(d) => {
             tracing::info!(%token_url, "bff: auth_callback token exchange succeeded");
@@ -1139,13 +1139,13 @@ pub async fn auth_callback(
 
     // Decode the access token to extract claims (user_id, org_id, env_id).
     // D4 (fail-closed): undecodable claims or a missing env_id REJECT the
-    // callback — a broken token never yields a session.
+    // callback - a broken token never yields a session.
     let (user_id, org_id, token_env_id) =
         match decode_token_claims(&token_data.access_token, &state.pool).await {
             Some(claims) => claims,
             None => {
                 tracing::error!(
-                    "bff: auth_callback token claims undecodable — rejecting (fail-closed)"
+                    "bff: auth_callback token claims undecodable - rejecting (fail-closed)"
                 );
                 return (
                     StatusCode::FORBIDDEN,
@@ -1169,7 +1169,7 @@ pub async fn auth_callback(
     // auth-env, and group checks below.
     let instance_info = resolve_app_instance(&state, &headers).await;
 
-    // D3 — auth-env match (fail-closed). The token's env must belong to the
+    // D3 - auth-env match (fail-closed). The token's env must belong to the
     // instance's org, and when the instance uses a dedicated auth_domain
     // (staff-auth apps), the token env must BE the auth env. A prod-env
     // customer token presented to eTeller (auth.staff.*) is rejected here.
@@ -1182,7 +1182,7 @@ pub async fn auth_callback(
                 hostname = %hostname,
                 token_env = %token_env_id,
                 instance_env = %inst.env_id,
-                "bff: auth_callback REJECTED — token env does not match the app's auth environment"
+                "bff: auth_callback REJECTED - token env does not match the app's auth environment"
             );
             return (
                 StatusCode::FORBIDDEN,
@@ -1191,11 +1191,11 @@ pub async fn auth_callback(
                 .into_response();
         }
 
-        // F-A — app-group membership gate (fail-closed by default). The
+        // F-A - app-group membership gate (fail-closed by default). The
         // gate mode is declarative on the instance (strict/self_service,
         // see check_app_group_membership): staff apps require explicit
-        // membership — an org-admin who is not a teller can never obtain
-        // a teller session — while self_service platform surfaces satisfy
+        // membership - an org-admin who is not a teller can never obtain
+        // a teller session - while self_service platform surfaces satisfy
         // the gate via authentication + D3.
         if let Err(status_msg) =
             check_app_group_membership(&state, inst, &token_env_id, &user_id).await
@@ -1203,7 +1203,7 @@ pub async fn auth_callback(
             tracing::warn!(
                 hostname = %hostname,
                 user_id = %user_id,
-                "bff: auth_callback REJECTED — {}",
+                "bff: auth_callback REJECTED - {}",
                 status_msg
             );
             return (StatusCode::FORBIDDEN, status_msg).into_response();
@@ -1213,7 +1213,7 @@ pub async fn auth_callback(
     // Create an encrypted session.
     let key = session::derive_key(&state.config.encryption_key);
     let mut sess = Session::new(user_id, org_id, token_env_id.clone());
-    // D2 — bind the session to the creating app instance.
+    // D2 - bind the session to the creating app instance.
     if let Some(inst) = &instance_info {
         if !inst.application_id.is_empty() {
             sess.application_id = Some(inst.application_id.clone());
@@ -1261,11 +1261,11 @@ pub async fn auth_callback(
         "bff: auth_callback creating session and redirecting to frontend"
     );
 
-    // Build the response manually — Axum's tuple with [(name, value); N]
+    // Build the response manually - Axum's tuple with [(name, value); N]
     // uses header `insert` (overwrite), so two `set-cookie` entries would
     // clobber each other. Using `Response::builder.header` appends.
     //
-    // F-C — cookie domain scoped to the app instance's domain (design
+    // F-C - cookie domain scoped to the app instance's domain (design
     // ): strip exactly the leading `bff.` label so the cookie is
     // visible on the app frontend + its BFF host and nothing else. The
     // previous derivation short-circuited to the platform root
@@ -1309,7 +1309,7 @@ struct TokenExchangeResponse {
 
 // ── Auth session ────────────────────────────────────────────────────────
 
-/// `GET /auth/session` — return session metadata (never tokens).
+/// `GET /auth/session` - return session metadata (never tokens).
 ///
 ///
 pub async fn auth_session(
@@ -1327,7 +1327,7 @@ pub async fn auth_session(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // D2 — session→application binding : the session must
+    // D2 - session→application binding : the session must
     // belong to the app instance resolved from this request. Mismatch →
     // 401 (the app frontend treats it as signed-out and shows the landing
     // page). The x-sentin8-app-id header is injected by TLS per hostname.
@@ -1340,7 +1340,7 @@ pub async fn auth_session(
             tracing::warn!(
                 session_app = ?s.application_id,
                 request_app = ?req_app,
-                "bff: /auth/session REJECTED session — application binding mismatch"
+                "bff: /auth/session REJECTED session - application binding mismatch"
             );
             return Err((
                 StatusCode::UNAUTHORIZED,
@@ -1358,11 +1358,11 @@ pub async fn auth_session(
             };
             //fetch the user's groups + profile so the app
             // frontend can check sentin8:app:{instance_id} membership.
-            // OWNER API path (DBX — the BFF holds NO grants on auth's
+            // OWNER API path (DBX - the BFF holds NO grants on auth's
             // tables): Auth's `GET /oauth/userinfo` resolves roles/groups/
             // profile LIVE from the verified bearer (the session's own user
             // access token). A failed call degrades to empty enrichment,
-            // never a 500 — the session metadata itself is already valid.
+            // never a 500 - the session metadata itself is already valid.
             let key = session::derive_key(&state.config.encryption_key);
             let (email, first_name, last_name, groups) = match s
                 .access_token(&key)
@@ -1390,12 +1390,12 @@ pub async fn auth_session(
                             .unwrap_or_default(),
                     ),
                     Err(e) => {
-                        tracing::warn!(error = %e, "bff: /auth/session userinfo unavailable — degrading to bare session metadata");
+                        tracing::warn!(error = %e, "bff: /auth/session userinfo unavailable - degrading to bare session metadata");
                         (None, None, None, vec![])
                     }
                 },
                 None => {
-                    tracing::warn!("bff: /auth/session has no access token — degrading to bare session metadata");
+                    tracing::warn!("bff: /auth/session has no access token - degrading to bare session metadata");
                     (None, None, None, vec![])
                 }
             };
@@ -1431,7 +1431,7 @@ pub async fn auth_session(
 
 // ── Generic service action proxy ────────────────────────────────────────
 
-/// `POST /bff/action/{action}` — proxy a registered service action.
+/// `POST /bff/action/{action}` - proxy a registered service action.
 ///
 /// This is a generic authenticated proxy. The frontend sends the action name
 /// as a path parameter and the request body as JSON. BFF:
@@ -1442,7 +1442,7 @@ pub async fn auth_session(
 /// 3. Forwards the request body + access token to the registered service
 /// 4. Returns the response
 ///
-/// No vertical-specific knowledge is hardcoded — the action name, URL, method,
+/// No vertical-specific knowledge is hardcoded - the action name, URL, method,
 /// and scope all come from the registry at runtime.
 pub async fn service_action(
     State(state): State<AppState>,
@@ -1450,7 +1450,7 @@ pub async fn service_action(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, (StatusCode, String)> {
-    // Validate session — extract the session cookie.
+    // Validate session - extract the session cookie.
     let session_id = match extract_cookie(&headers, session::SESSION_COOKIE) {
         Some(s) => s,
         None => return Err((StatusCode::UNAUTHORIZED, "no session".into())),
@@ -1473,7 +1473,7 @@ pub async fn service_action(
 
     // Look up the service action
 
-    // ── Step 5 — Shield decides (design ). The
+    // ── Step 5 - Shield decides (design ). The
     // registered action's scope is the Shield action id; the enforced
     // scope-mirror set over the caller's LIVE effective scope set
     // is the only gate. The session's decrypted Bearer rides the headers so
@@ -1567,7 +1567,7 @@ pub async fn service_action(
 
     tracing::info!(action = %action, service_url = %service_url, status = %status, "bff: service action proxied");
 
-    // Return the upstream response — status + body as-is.
+    // Return the upstream response - status + body as-is.
     Ok((
         status,
         [(axum::http::header::CONTENT_TYPE, "application/json")],
@@ -1586,7 +1586,7 @@ fn urlencoding(s: &str) -> String {
 
 // ── Auth sign-out ────────────────────────────────────────────────────────
 
-/// `POST /auth/sign-out` — session termination + token revocation.
+/// `POST /auth/sign-out` - session termination + token revocation.
 ///
 ///
 pub async fn auth_sign_out(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -1614,11 +1614,11 @@ pub async fn auth_sign_out(State(state): State<AppState>, headers: HeaderMap) ->
     // Clear BOTH session cookies so apps route sign-out through BFF only
     // (they never call Auth directly):
     // - BFF's own session cookie
-    // - Auth's `__session` cookie — Auth sets it on the registrable
+    // - Auth's `__session` cookie - Auth sets it on the registrable
     // domain; if left in place, Auth's /oauth/authorize silently
     // re-authenticates the user from the stale cookie.
     // F-C: the BFF session cookie Domain is the app instance's domain
-    // (strip the leading `bff.` label) — must match the callback's
+    // (strip the leading `bff.` label) - must match the callback's
     // Set-Cookie derivation exactly, or the browser keeps the session
     // cookie alive. Auth's `__session` uses the registrable domain
     // (one label deeper). Exact-host fallback (empty Domain) for
@@ -1655,7 +1655,7 @@ pub async fn health() -> Json<serde_json::Value> {
     )
 }
 
-/// `GET /bff/readiness` — readiness check.
+/// `GET /bff/readiness` - readiness check.
 pub async fn readiness(State(state): State<AppState>) -> Json<serde_json::Value> {
     let valkey_ok = state.store.ping().await;
     Json(serde_json::json!({
@@ -1664,7 +1664,7 @@ pub async fn readiness(State(state): State<AppState>) -> Json<serde_json::Value>
     }))
 }
 
-/// `POST /bff/auth/refresh` — force token refresh.
+/// `POST /bff/auth/refresh` - force token refresh.
 pub async fn auth_refresh(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1692,13 +1692,13 @@ pub async fn auth_refresh(
         ));
     }
 
-    // — refresh via fapiclient with the process DPoP
+    // - refresh via fapiclient with the process DPoP
     // key. Under `fapi_2` (`require_dpop = true`), refresh_token grants on
-    // non-exempt (DCR-registered app-instance) clients require a proof — a
+    // non-exempt (DCR-registered app-instance) clients require a proof - a
     // plain refresh POST gets 401. Uses the platform auth issuer (the
     // session does not record the issuer; refresh tokens are issued by the
     // same Auth the callback used, and the platform issuer verifies its own
-    // tokens' signatures for grant replay — for tenant issuers the browser
+    // tokens' signatures for grant replay - for tenant issuers the browser
     // re-authenticates on expiry instead).
     let fapi_opts = sentin8::auth::fapi::ClientOptions::builder()
         .issuer_url(state.config.sentin8_auth_base_url.clone())
@@ -1759,12 +1759,12 @@ pub async fn auth_refresh(
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-/// `GET /bff/metrics` — Prometheus metrics.
+/// `GET /bff/metrics` - Prometheus metrics.
 ///
 /// Returns basic metrics in Prometheus text format: session count,
 /// proxy latency histogram (P0: simple counter), token refresh rate.
 pub async fn metrics(State(state): State<AppState>) -> Result<String, (StatusCode, String)> {
-    // P0: return static metrics — a full implementation would use prometheus crate.
+    // P0: return static metrics - a full implementation would use prometheus crate.
     let session_count = count_sessions(&state.store).await;
     let metrics_text = format!(
         "# HELP sentin8_bff_sessions_active Number of active BFF sessions\n\
@@ -1782,11 +1782,11 @@ pub async fn metrics(State(state): State<AppState>) -> Result<String, (StatusCod
 
 /// Count active sessions in Valkey (P0: scan for bff:session:* keys).
 async fn count_sessions(_store: &SessionStore) -> u64 {
-    // P0: return 0 — a full implementation would use SCAN.
+    // P0: return 0 - a full implementation would use SCAN.
     0
 }
 
-/// `POST /bff/audit` — emit an audit event.
+/// `POST /bff/audit` - emit an audit event.
 ///
 /// Records audit events for session create/destroy, token refresh, proxy mutations.
 #[derive(Debug, Deserialize)]
@@ -1806,7 +1806,7 @@ pub async fn audit_event(
     State(_state): State<AppState>,
     Json(req): Json<AuditEventRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    // P0: log the audit event — a full implementation would write to a DB table.
+    // P0: log the audit event - a full implementation would write to a DB table.
     tracing::info!(
         action = %req.action,
         actor = ?req.actor_user_id,
@@ -1862,7 +1862,7 @@ fn derive_app_frontend_url(hostname: &str, sentin8_domain: &str) -> String {
                     return format!("https://{app_slug}.{sentin8_domain}");
                 }
             }
-            // Pattern 3: custom domain — strip the bff. prefix and use the rest.
+            // Pattern 3: custom domain - strip the bff. prefix and use the rest.
             // This handles bff.www.ibank.local → https://www.ibank.local
             // Only applies when the hostname doesn't end with.{sentin8_domain}
             // (i.e. it's not a sentin8.local subdomain).
@@ -1892,7 +1892,7 @@ async fn resolve_app_custom_domain(
         return String::new();
     }
     // Call Sys HTTP endpoint for app custom domain resolution.
-    // BFF-only surface — attach the delegator M2M token (sys design ;
+    // BFF-only surface - attach the delegator M2M token (sys design ;
     // the unauthenticated call was 401ing after ).
     let sentin8_sys_url = format!(
         "{}/v1/env/{}/app-custom-domain",
@@ -1927,13 +1927,13 @@ async fn resolve_app_custom_domain(
 }
 
 // PKCE helpers are imported from the Auth SDK (sentin8::auth::client).
-// No local duplication — use sentin8::auth::client::generate_pkce_verifier
+// No local duplication - use sentin8::auth::client::generate_pkce_verifier
 // and sentin8::auth::client::pkce_s256_challenge.
 
 const SYSTEM_ORG_ID: &str = "00000000-0000-0000-0000-000000000001";
 const SYSTEM_ENV_ID: &str = "00000000-0000-0000-0000-000000000002";
 
-/// Decode JWT claims (without signature verification — the resource server
+/// Decode JWT claims (without signature verification - the resource server
 /// verifies via JWKS). Extracts sub, env_id from the access token.
 /// Uses the Auth SDK's `decode_claims_unverified` helper.
 /// org_id is resolved from env_id via sentin8_sys_environments (no longer in JWT).
@@ -1946,7 +1946,7 @@ async fn decode_token_claims(token: &str, pool: &sqlx::PgPool) -> Option<(String
     };
     let env_id = claims.env_id.unwrap_or_else(|| SYSTEM_ENV_ID.to_string());
     // Resolve org_id from env_id via sentin8_sys_environments.
-    // Context-first read — the autocommit
+    // Context-first read - the autocommit
     // variant sees zero rows under FORCE RLS; falls back to the platform
     // org only when the env row genuinely does not exist.
     let org_id = crate::tenant::resolve_org_id_from_env_id(pool, &env_id)

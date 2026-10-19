@@ -3,27 +3,27 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! BFF Delegation endpoints —–.
+//! BFF Delegation endpoints --.
 //!
-//! BFF is the Delegation Gateway — it brokers customer-delegated access
+//! BFF is the Delegation Gateway - it brokers customer-delegated access
 //! for staff applications (eTeller) by calling two Auth instances directly:
 //!
-//! - **Customer Auth** (env-scoped) — initiates CIBA (`POST /oauth/bc-authorize`),
+//! - **Customer Auth** (env-scoped) - initiates CIBA (`POST /oauth/bc-authorize`),
 //! polls the token endpoint (`POST /oauth/token` with CIBA grant).
-//! - **Staff Auth** (org-scoped or operator-configured) — the staff token is
+//! - **Staff Auth** (org-scoped or operator-configured) - the staff token is
 //! already in the BFF session; the customer token's `act` claim records
 //! the staff identity.
 //!
-//! No separate "Delegation Gateway service" is needed — BFF has the staff
+//! No separate "Delegation Gateway service" is needed - BFF has the staff
 //! session, can call the customer Auth, and caches the delegation token in
 //! Valkey. The delegation token IS the customer CIBA token (with `act`=staff
 //! embedded by Auth's CIBA grant).
 //!
 //! Flow:
-//! 1. `POST /delegate/start` — BFF calls customer Auth `POST /oauth/bc-authorize`
+//! 1. `POST /delegate/start` - BFF calls customer Auth `POST /oauth/bc-authorize`
 //! with `delivery=ciba|assisted_link`. Returns `delegation_id`, `auth_req_id`,
 //! `verification_uri_complete?`, `short_code?`.
-//! 2. `POST /delegate/poll` — BFF calls customer Auth `POST /oauth/token` with
+//! 2. `POST /delegate/poll` - BFF calls customer Auth `POST /oauth/token` with
 //! the CIBA grant. Returns `status` + `delegation_token` on approval.
 //! 3. BFF caches the delegation token in Valkey and attaches it to proxied
 //! Ledger/Payments calls that touch customer data.
@@ -125,7 +125,7 @@ pub struct DelegateStatusResponse {
     pub delegation_id: Option<String>,
 }
 
-/// `POST /delegate/start` — start a delegation flow.
+/// `POST /delegate/start` - start a delegation flow.
 ///
 /// Calls the customer (env-scoped) Auth `POST /oauth/bc-authorize` directly.
 pub async fn delegate_start(
@@ -169,7 +169,7 @@ pub async fn delegate_start(
     })?;
 
     // (Option A): resolve the initiating staff member from the BFF
-    // session (authenticated identity — never from the staff app's request
+    // session (authenticated identity - never from the staff app's request
     // body). Their user id + email become the CIBA token's `act` claim, so
     // every customer-data access is attributable to a human. A CIBA request
     // without a staff session is a plain decoupled-device self-approval.
@@ -192,12 +192,12 @@ pub async fn delegate_start(
         }
     }
 
-    // Design table — Assisted-Login/CIBA always targets the env-scoped
+    // Design table - Assisted-Login/CIBA always targets the env-scoped
     // (customer) Sentin8:Auth using the app instance's DCR-registered OAuth
-    // client (`oauth_client_id`, public PKCE — same client the instance's
+    // client (`oauth_client_id`, public PKCE - same client the instance's
     // other OIDC flows use). The platform delegator client lives in the
     // PLATFORM env only, so authenticating here with it fails the env-scoped
-    // client lookup (RLS) — the actual 401 seen in bank8 e2e.
+    // client lookup (RLS) - the actual 401 seen in bank8 e2e.
     let info = crate::handlers::resolve_app_auth_info(&state, &headers).await;
     // Staff-mode instances register a SEPARATE CIBA client at the CUSTOMER
     // env's auth (the sign-in client lives at the staff auth); CIBA
@@ -305,7 +305,7 @@ pub async fn delegate_start(
         "bff: delegate_start issued"
     );
 
-    // (SSE migration) — start a background poll task so the
+    // (SSE migration) - start a background poll task so the
     // result is pushed to the client over the SSE subscription stream (no
     // client-side polling needed). The client still falls back to POST
     // /delegate/poll if SSE is not connected.
@@ -332,7 +332,7 @@ pub async fn delegate_start(
     }))
 }
 
-/// `POST /delegate/poll` — poll delegation status.
+/// `POST /delegate/poll` - poll delegation status.
 ///
 /// Calls the customer (env-scoped) Auth `POST /oauth/token` with the CIBA grant.
 /// On approval, caches the delegation token in Valkey.
@@ -371,7 +371,7 @@ pub async fn delegate_poll(
 
     let token_url = format!("{}/oauth/token", sentin8_auth_url.trim_end_matches('/'));
     tracing::info!(%token_url, %auth_req_id, "bff: polling CIBA token");
-    // Design — the poll uses the same env-scoped app-instance client
+    // Design - the poll uses the same env-scoped app-instance client
     // as bc-authorize (public PKCE client registered in the customer env).
     let poll_info = crate::handlers::resolve_app_auth_info(&state, &headers).await;
     // Same CIBA-client preference as delegate_start (the poll authenticates
@@ -390,10 +390,10 @@ pub async fn delegate_poll(
         "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Aciba&auth_req_id={}&client_id={}",
         auth_req_id, poll_client_id,
     );
-    // — under `fapi_2` (`require_dpop = true`) the
+    // - under `fapi_2` (`require_dpop = true`) the
     // CIBA grant is a user-facing grant: non-exempt clients MUST present a
     // DPoP proof on the token request. The BFF (the delegation broker) signs
-    // with its process ES256 key — the proof's embedded `jwk` lets Auth
+    // with its process ES256 key - the proof's embedded `jwk` lets Auth
     // verify self-contained, and the issued delegation token is
     // sender-constrained to the BFF (`cnf.jkt`).
     let dpop_proof = sentin8::auth::fapi::dpop_proof(
@@ -428,7 +428,7 @@ pub async fn delegate_poll(
 
     // Handle pending / denied / expired (RFC 8705 / RFC 8628). Auth returns
     // these as HTTP 400 with a JSON body `{"error": "..."}`. Parse the error
-    // code defensively — some OIDC providers return a plain-text body
+    // code defensively - some OIDC providers return a plain-text body
     // (just the error code) instead of JSON, so accept both.
     if status_code == StatusCode::BAD_REQUEST {
         let error = serde_json::from_str::<serde_json::Value>(&resp_text)
@@ -469,9 +469,9 @@ pub async fn delegate_poll(
         ));
     }
 
-    // Success — customer approved. Parse the JSON token response.
+    // Success - customer approved. Parse the JSON token response.
     let body: serde_json::Value = serde_json::from_str(&resp_text)
-        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("auth token poll bad json: {e} — body: {resp_text} — url: {sentin8_auth_url} — status: {status_code}")))?;
+        .map_err(|e| (StatusCode::BAD_GATEWAY, format!("auth token poll bad json: {e} - body: {resp_text} - url: {sentin8_auth_url} - status: {status_code}")))?;
 
     let delegation_token = body["access_token"]
         .as_str()
@@ -517,7 +517,7 @@ pub async fn delegate_poll(
 
     tracing::info!(
         delegation_id = %req.delegation_id,
-        "bff: delegate_poll approved — delegation token cached"
+        "bff: delegate_poll approved - delegation token cached"
     );
 
     Ok(Json(DelegatePollResponse {
@@ -527,7 +527,7 @@ pub async fn delegate_poll(
     }))
 }
 
-/// `GET /delegate/status` — check cached delegation token status.
+/// `GET /delegate/status` - check cached delegation token status.
 pub async fn delegate_status(
     State(state): State<AppState>,
     axum::extract::Query(q): axum::extract::Query<DelegatePollRequest>,
@@ -573,7 +573,7 @@ pub async fn delegate_status(
     }))
 }
 
-/// (Option A) — read the cached CIBA delegation token for a
+/// (Option A) - read the cached CIBA delegation token for a
 /// delegation session. Used by the proxy (`resolve_effective_token`) to
 /// attach the customer-approved token instead of the staff session token.
 /// Returns `Ok(None)` when the delegation is missing/expired (fail closed).
@@ -590,7 +590,7 @@ pub async fn get_cached_delegation_token(
     Ok(token.filter(|t| !t.is_empty()))
 }
 
-/// `POST /delegate/send-link` — forward the Assisted Login link (convenience).
+/// `POST /delegate/send-link` - forward the Assisted Login link (convenience).
 #[derive(Debug, Deserialize)]
 pub struct SendLinkRequest {
     pub delegation_id: String,
@@ -618,7 +618,7 @@ pub async fn delegate_send_link(
 
 // ── SCIM Proxy ───────────────────────────────────────
 
-/// Generic SCIM proxy — forwards all SCIM operations to the env-scoped Auth
+/// Generic SCIM proxy - forwards all SCIM operations to the env-scoped Auth
 /// using BFF's cert-bound M2M token (`bff-delegator` with `sentin8:scim:read`/
 /// `sentin8:scim:write` scope).
 ///
@@ -643,7 +643,7 @@ pub struct ScimSearchRequest {
     pub count: Option<u32>,
 }
 
-/// `GET /delegate/scim/users` — list/search users via SCIM.
+/// `GET /delegate/scim/users` - list/search users via SCIM.
 pub async fn delegate_scim_list(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -682,7 +682,7 @@ pub async fn delegate_scim_list(
     scim_response(resp).await
 }
 
-/// `POST /delegate/scim/users` — create a user via SCIM.
+/// `POST /delegate/scim/users` - create a user via SCIM.
 pub async fn delegate_scim_create(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -716,7 +716,7 @@ pub async fn delegate_scim_create(
     ))
 }
 
-/// `GET /delegate/scim/users/:id` — get a single user via SCIM.
+/// `GET /delegate/scim/users/:id` - get a single user via SCIM.
 pub async fn delegate_scim_get(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -747,7 +747,7 @@ pub async fn delegate_scim_get(
     scim_response(resp).await
 }
 
-/// `PUT /delegate/scim/users/:id` — replace a user via SCIM.
+/// `PUT /delegate/scim/users/:id` - replace a user via SCIM.
 pub async fn delegate_scim_replace(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -781,7 +781,7 @@ pub async fn delegate_scim_replace(
     scim_response(resp).await
 }
 
-/// `PATCH /delegate/scim/users/:id` — partial update via SCIM.
+/// `PATCH /delegate/scim/users/:id` - partial update via SCIM.
 pub async fn delegate_scim_patch(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -815,7 +815,7 @@ pub async fn delegate_scim_patch(
     scim_response(resp).await
 }
 
-/// `DELETE /delegate/scim/users/:id` — deactivate a user via SCIM.
+/// `DELETE /delegate/scim/users/:id` - deactivate a user via SCIM.
 pub async fn delegate_scim_delete(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -878,20 +878,20 @@ async fn scim_response_value(
     serde_json::from_str(&text).map_err(|e| {
         (
             StatusCode::BAD_GATEWAY,
-            format!("SCIM response parse failed: {e} — body: {text}"),
+            format!("SCIM response parse failed: {e} - body: {text}"),
         )
     })
 }
 
 /// Resolve the env-scoped (customer) Auth URL for CIBA calls.
 ///
-/// Always uses the env-scoped Auth — never the staff Auth — regardless of
+/// Always uses the env-scoped Auth - never the staff Auth - regardless of
 /// the app's auth mode. Customer tokens must come from the customer's own env.
 async fn resolve_env_sentin8_auth_url(state: &AppState, headers: &HeaderMap) -> String {
     let env_id = headers
         .get("x-sentin8-env-id")
         .and_then(|v| v.to_str().ok());
-    // org_id is no longer in TLS headers — resolve from env_id via DB when needed.
+    // org_id is no longer in TLS headers - resolve from env_id via DB when needed.
     let env_id = match env_id {
         Some(e) => e,
         _ => return state.config.sentin8_auth_base_url.clone(),
@@ -902,7 +902,7 @@ async fn resolve_env_sentin8_auth_url(state: &AppState, headers: &HeaderMap) -> 
         env_id
     );
 
-    // BFF-only surface — present the delegator CERTIFICATE identity
+    // BFF-only surface - present the delegator CERTIFICATE identity
     // (the transport authenticates at the TLS layer).
     // Best-effort: on identity failure fall back to the platform auth
     // issuer as before.

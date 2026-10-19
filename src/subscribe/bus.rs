@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Bus SSE consumer — Tier 1 domain events.
+//! Bus SSE consumer - Tier 1 domain events.
 //!
 //! Each SSE subscription stream (`GET /subscribe`) spawns a background Bus
 //! consumer task that drains events from the stream families matching the
@@ -42,7 +42,7 @@ pub struct SessionInfo {
     /// All org IDs the user is a member of (via `sentin8_auth_group_members` →
     /// `sentin8_auth_groups.org_id`). Used for RBAC filtering of
     /// `sentin8:stat.traffic.snapshot` events. Platform admins (scope contains
-    /// `sentin8:sys:admin`) bypass this — they see all orgs.
+    /// `sentin8:sys:admin`) bypass this - they see all orgs.
     pub accessible_org_ids: Vec<String>,
 }
 
@@ -221,7 +221,7 @@ async fn sse_consume_loop(
                                "produced_at": msg["produced_at"],
                                "produced_by": msg["produced_by"],
         // Pass publisher_subject to the client for audit/activity
-        // feeds. Do NOT pass publisher_id_token —
+        // feeds. Do NOT pass publisher_id_token -
         // that token is server-side only and must never reach
         // the browser. See (privacy).
                                "publisher_subject": msg["publisher_subject"],
@@ -246,7 +246,7 @@ async fn sse_consume_loop(
 
         // Per-user filtering for vertical events (platform
         // ): any event carrying an explicit `user_id`
-        // identity claim reaches ONLY the session user —
+        // identity claim reaches ONLY the session user -
         // unless the caller is a platform admin (cross-tenant
         // operator view). This is what lets per-user vertical
         // events (`email8:push:state:changed`,

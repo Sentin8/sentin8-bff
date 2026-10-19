@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! Encryption key rotation —
+//! Encryption key rotation -
 //!
 //! Supports 24h key rotation with old keys retained for decryption.
 //! New encryptions use the current (primary) key; decryptions try
@@ -26,7 +26,7 @@ pub struct KeyEntry {
 /// Key ring holding the current key + retained old keys.
 #[derive(Clone)]
 pub struct KeyRing {
-    /// The current (primary) key — used for all new encryptions.
+    /// The current (primary) key - used for all new encryptions.
     pub current: KeyEntry,
     /// Old keys retained for decryption (most recent first).
     pub retained: Vec<KeyEntry>,
@@ -78,7 +78,7 @@ impl KeyRing {
         &self.current.id
     }
 
-    /// Find a key by ID — checks current first, then retained.
+    /// Find a key by ID - checks current first, then retained.
     pub fn find_key(&self, id: &str) -> Option<&[u8; 32]> {
         if self.current.id == id {
             return Some(&self.current.key);
@@ -172,7 +172,7 @@ pub fn decrypt_with_keyring(ring: &KeyRing, blob: &str) -> Result<Vec<u8>, Strin
         }
     }
 
-    Err("decryption failed — no key matches".into())
+    Err("decryption failed - no key matches".into())
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Build the operational ring from the config: retained (older)
-/// passphrases first, the current one last — `KeyRing::from_passphrases`
+/// passphrases first, the current one last - `KeyRing::from_passphrases`
 /// treats the last entry as current.
 pub fn ring_from_config(current: &str, retained: &[String]) -> KeyRing {
     let mut passphrases: Vec<String> = retained.to_vec();
@@ -219,7 +219,7 @@ pub fn spawn_session_rewrap(
     tokio::spawn(async move {
         let ring = ring_from_config(&current, &retained);
         if ring.retained.is_empty() {
-            return; // No rotation in effect — nothing to re-wrap.
+            return; // No rotation in effect - nothing to re-wrap.
         }
         let current_key = ring.current_key();
         let keys = ring.all_keys();
@@ -231,7 +231,7 @@ pub fn spawn_session_rewrap(
             let ids = match store.list_session_ids(REWRAP_BATCH).await {
                 Ok(ids) => ids,
                 Err(e) => {
-                    tracing::warn!(error = %e, "bff: re-wrap scan failed — sessions stay queued");
+                    tracing::warn!(error = %e, "bff: re-wrap scan failed - sessions stay queued");
                     continue;
                 }
             };
