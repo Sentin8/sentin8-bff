@@ -182,7 +182,7 @@ components:
       properties:
         sentin8_auth_domain:
           type: string
-          description: Sentin8:Auth issuer domain (e.g. sentin8-auth.ops.sys.sentin8.local)
+          description: Sentin8:Auth issuer domain (e.g. sentin8-auth.ops.sys.local.sentin8.dev)
         client_name:
           type: string
         redirect_uri:

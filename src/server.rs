@@ -233,7 +233,7 @@ pub async fn serve(
         // and Access-Control-Allow-Headers: * are NOT valid. We must
         // explicitly allow the origin, methods, and list all custom headers.
         // In development, we reflect the request origin (any subdomain
-        // of sentin8.local) and allow all custom headers.
+        // of local.sentin8.dev) and allow all custom headers.
         .layer({
             CorsLayer::new()
                 .allow_origin(tower_http::cors::AllowOrigin::mirror_request())

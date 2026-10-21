@@ -304,7 +304,7 @@ pub fn resolve_app_sentin8_auth_domain(app_domain: &str, sentin8_domain: &str) -
     // The auth domain is `auth.{env_slug}.e.{org_slug}.o.{sentin8_domain}`.
     let parts: Vec<&str> = app_domain.split('.').collect();
     if parts.len() >= 5 {
-        // www. prod. e. ibank. o. sentin8.local
+        // www. prod. e. ibank. o. local.sentin8.dev
         // [0] [1] [2] [3] [4] [5..]
         let env_slug = parts[1];
         let org_slug = parts[3];

@@ -474,7 +474,7 @@ mod tests {
     fn tenant_context_platform_bff() {
         let headers = HeaderMap::new();
         let ctx =
-            TenantContext::from_headers(&headers, "sentin8-bff.sentin8-dash.ops.sys.sentin8.local");
+            TenantContext::from_headers(&headers, "sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev");
         assert!(!ctx.from_tls);
         assert!(!ctx.is_app_bff);
     }

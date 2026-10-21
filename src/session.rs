@@ -55,10 +55,10 @@ pub fn cookie_domain_for_host(host: &str, fallback: &str) -> String {
 /// else:
 ///
 /// ```text
-/// bff.bank8-eteller.prod.ibank38385734.sentin8.local
-/// → .bank8-eteller.prod.ibank38385734.sentin8.local
-/// bff.dash.ops.sys.sentin8.local
-/// → .dash.ops.sys.sentin8.local
+/// bff.bank8-eteller.prod.ibank38385734.local.sentin8.dev
+/// → .bank8-eteller.prod.ibank38385734.local.sentin8.dev
+/// bff.dash.ops.sys.local.sentin8.dev
+/// → .dash.ops.sys.local.sentin8.dev
 /// ```
 /// A platform-root fallback (`Domain=.{sentin8_domain}`) is prohibited:
 /// it makes every BFF in the platform share one cookie jar, which is
@@ -73,7 +73,7 @@ pub fn app_cookie_domain_for_host(host: &str) -> Option<String> {
     let stripped = host.strip_prefix("bff.").unwrap_or(host);
     // The app-instance pattern needs at least 4 labels:
     // {app}.{env}.{org-slug}.{tld...}. Platform Dash is
-    // dash.ops.sys.sentin8.local - also 4+.
+    // dash.ops.sys.local.sentin8.dev - also 4+.
     let labels: Vec<&str> = stripped.split('.').collect();
     if labels.len() < 4 {
         return None;

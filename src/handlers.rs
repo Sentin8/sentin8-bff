@@ -93,7 +93,7 @@ pub async fn auth_login(
     };
     tracing::info!(%sentin8_auth_base_url, %oauth_client_id, "bff: resolved auth URL");
     // Derive the app frontend URL from the TLS hostname header.
-    // e.g. "sentin8-bff.sentin8-dash.ops.sys.sentin8.local" → "https://sentin8-dash.ops.sys.sentin8.local"
+    // e.g. "sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev" → "https://sentin8-dash.ops.sys.local.sentin8.dev"
     // This is used as the OAuth `state` so the callback knows where to
     // redirect after the session is created.
     let hostname = headers
@@ -114,7 +114,7 @@ pub async fn auth_login(
 
     // Derive the redirect_uri from the tls hostname header so the
     // OAuth callback goes back to the same BFF instance that initiated
-    // the flow. e.g. "sentin8-bff.sentin8-dash.ops.sys.sentin8.local" → "https://sentin8-bff.sentin8-dash.ops.sys.sentin8.local/auth/callback"
+    // the flow. e.g. "sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev" → "https://sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev/auth/callback"
     // Fall back to static config if no hostname header.
     let redirect_uri = if hostname.is_empty() {
         state.config.oauth_redirect_uri.clone()
@@ -128,7 +128,7 @@ pub async fn auth_login(
     let _challenge = sentin8::auth::client::pkce_s256_challenge(&verifier);
 
     // Store the verifier in a short-lived cookie for the callback.
-    // For sentin8.local subdomains (e.g. sentin8-bff.sentin8-dash.ops.sys.sentin8.local), use Domain=.sentin8.local
+    // For local.sentin8.dev subdomains (e.g. sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev), use Domain=.local.sentin8.dev
     // so the cookie is shared across subdomains.
     // For custom domains (e.g. bff.www.ibank.local), use the parent domain
     // (e.g. .www.ibank.local) so the cookie is shared across the custom
@@ -441,7 +441,7 @@ async fn resolve_tenant_sentin8_auth_url(
         .get("x-sentin8-env-id")
         .and_then(|v| v.to_str().ok());
     let env_id = match env_id {
-        // No tenant headers → platform BFF (e.g. sentin8-bff.sentin8-dash.ops.sys.sentin8.local).
+        // No tenant headers → platform BFF (e.g. sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev).
         // Use the platform auth issuer.
         None => {
             tracing::info!("bff: no tls env header, using platform auth");
@@ -454,7 +454,7 @@ async fn resolve_tenant_sentin8_auth_url(
         .await
         .map(|id| id.to_string())
         .unwrap_or_default();
-    // System org / ops env → platform BFF (e.g. bff.dash.ops.sys.sentin8.local).
+    // System org / ops env → platform BFF (e.g. bff.dash.ops.sys.local.sentin8.dev).
     // The system env has no custom auth_domain in Sys; use the platform auth issuer.
     if org_id == sentin8::config::SYSTEM_ORG_ID.to_string()
         && env_id == sentin8::config::SYSTEM_ENV_ID.to_string()
@@ -1269,7 +1269,7 @@ pub async fn auth_callback(
     // ): strip exactly the leading `bff.` label so the cookie is
     // visible on the app frontend + its BFF host and nothing else. The
     // previous derivation short-circuited to the platform root
-    // (.sentin8.local), letting one app's session cookie replay at every
+    // (.local.sentin8.dev), letting one app's session cookie replay at every
     // other BFF in the platform. Hostnames that don't match the
     // app-instance pattern omit the Domain attribute (exact-host cookie).
     let cookie_domain = session::app_cookie_domain_for_host(hostname).unwrap_or_default();
@@ -1831,19 +1831,19 @@ pub(crate) fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> 
 }
 
 /// Derive the app frontend URL from the BFF hostname.
-/// e.g. "sentin8-bff.sentin8-dash.ops.sys.sentin8.local" → "https://sentin8-dash.ops.sys.sentin8.local"
-/// For platform BFF ("sentin8-bff.ops.sys.sentin8.local"), returns empty (no app context).
+/// e.g. "sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev" → "https://sentin8-dash.ops.sys.local.sentin8.dev"
+/// For platform BFF ("sentin8-bff.ops.sys.local.sentin8.dev"), returns empty (no app context).
 /// For custom domain BFF ("bff.www.ibank.local") → "https://www.ibank.local"
 fn derive_app_frontend_url(hostname: &str, sentin8_domain: &str) -> String {
     // Strip the BFF prefix to derive the app frontend URL.
     //
     // Handles three hostname patterns:
     // 1. Platform BFF: bff.dash.{sentin8_domain} → https://dash.{sentin8_domain}
-    // (e.g. sentin8-bff.sentin8-dash.ops.sys.sentin8.local → https://sentin8-dash.ops.sys.sentin8.local)
+    // (e.g. sentin8-bff.sentin8-dash.ops.sys.local.sentin8.dev → https://sentin8-dash.ops.sys.local.sentin8.dev)
     // 2. App BFF: bff.{env}.{org}.{app}.app.{sentin8_domain}
     // → https://{env}.{org}.{app}.app.{sentin8_domain}
-    // (e.g. bff.prod.ibank.ebank.sentin8-app.ops.sys.sentin8.local
-    // → https://prod.ibank.ebank.sentin8-app.ops.sys.sentin8.local)
+    // (e.g. bff.prod.ibank.ebank.sentin8-app.ops.sys.local.sentin8.dev
+    // → https://prod.ibank.ebank.sentin8-app.ops.sys.local.sentin8.dev)
     // 3. Custom domain BFF: bff.{custom_domain} → https://{custom_domain}
     // (e.g. bff.www.ibank.local → https://www.ibank.local)
     //
@@ -1865,7 +1865,7 @@ fn derive_app_frontend_url(hostname: &str, sentin8_domain: &str) -> String {
             // Pattern 3: custom domain - strip the bff. prefix and use the rest.
             // This handles bff.www.ibank.local → https://www.ibank.local
             // Only applies when the hostname doesn't end with.{sentin8_domain}
-            // (i.e. it's not a sentin8.local subdomain).
+            // (i.e. it's not a local.sentin8.dev subdomain).
             if !rest.ends_with(sentin8_domain) {
                 return format!("https://{rest}");
             }
