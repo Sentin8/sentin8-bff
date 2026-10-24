@@ -28,7 +28,7 @@ path = "src/main.rs"
 # THE SDK pin (RS 2.3) - the only cross-repo dependency. It carries the
 # entire shared library workspace (core/identity/tls/bus/shield/shell +
 # every bff-client/contracts SDK crate) behind the `sentin8` facade.
-sentin8 = { git = "https://github.com/Sentin8/sentin8-sdk", tag = "sdk-v0.6.10" }
+sentin8 = { git = "https://github.com/Sentin8/sentin8-sdk", tag = "sdk-v0.6.14" }
 sentin8-bff-sdk = { path = "sdk/facade" }
 # Service SDK mini-facades (SDD 3.1) - per-owner git pins
 sentin8-stat-sdk.workspace = true
