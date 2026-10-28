@@ -43,6 +43,30 @@ use uuid::Uuid;
 use crate::handlers::AppState;
 use crate::proxy::get_sentin8_bff_m2m_token;
 
+/// Process-global CIBA client-signing key (ES256 P-256, PKCS#8 PEM).
+///
+/// Sentin8:Auth's CIBA contract (as it stands - FAPI-CIBA §7.1) REQUIRES the
+/// signed request object: a `bc-authorize` push without `request`/`request_uri`
+/// rejects `invalid_request`, and the client identity must be one the customer
+/// env's auth can verify. So the BFF (the delegation broker, the CIBA CLIENT)
+/// holds one ES256 keypair per process and REGISTERs its public JWK on the
+/// CIBA client it provisions (the `jwks` DCR metadata - see
+/// `sentin8-app/src/dcr.rs::register_oauth_client_with_grants`); every
+/// `bc-authorize` push then carries `request = ciba_request_object(...)`
+/// signed by this key, and Auth verifies it against the client's registered
+/// JWK. Restarts rotate the key: the provisioning path re-registers (DCR
+/// update, upsert semantics) before any new push, so verification never
+/// races a stale key.
+pub(crate) fn ciba_client_key_pem() -> String {
+    use crate::handlers::dpop_key_pem;
+    // Reuse the SAME ES256 key the DPoP path holds: one process keypair
+    // serves both proofs (per-proof `jwk` headers) and the CIBA request
+    // object (registered JWK). Distinct concerns, same key material - both
+    // are "the BFF's client key" and the registration refresh keeps the
+    // surface in sync.
+    dpop_key_pem()
+}
+
 /// Valkey key prefix for cached delegation tokens.
 const DELEGATION_TOKEN_KEY_PREFIX: &str = "bff:delegation_token:";
 
@@ -214,15 +238,55 @@ pub async fn delegate_start(
         instance_cid
     };
 
+    // CIBA §7.1 (certified-auth contract): sign the request OBJECT with the
+    // client's registered ES256 key. `iss = client_id`, `aud = the customer
+    // auth's issuer` (the env-scoped URL the push targets - host-derived,
+    // the same rule auth's resolve_issuer applies), and the CIBA parameters
+    // as additional claims; auth overlays the signed parameters onto the
+    // request after verifying the signature. The unsigned form fields stay
+    // as belt-and-braces identity carriers only (signed wins per spec).
+    let issuer = sentin8_auth_url.trim_end_matches('/');
+    let request_object = sentin8::auth::fapi::ciba_request_object(
+        &[
+            ("login_hint".to_string(), serde_json::json!(req.login_hint)),
+            ("scope".to_string(), serde_json::json!(req.scope)),
+            (
+                "binding_message".to_string(),
+                serde_json::json!(req.binding_message),
+            ),
+            ("delivery".to_string(), serde_json::json!(delivery)),
+            (
+                "verification_uri_base".to_string(),
+                serde_json::json!(issuer),
+            ),
+            (
+                "act_sub".to_string(),
+                act_sub.clone().map(serde_json::Value::from).unwrap_or_default(),
+            ),
+            (
+                "act_email".to_string(),
+                act_email
+                    .clone()
+                    .map(serde_json::Value::from)
+                    .unwrap_or_default(),
+            ),
+        ],
+        &client_id,
+        issuer,
+        &ciba_client_key_pem(),
+    )
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("CIBA request-object signing failed: {e}"),
+        )
+    })?;
+
     let json_body = serde_json::json!({
         "client_id": client_id,
-        "login_hint": req.login_hint,
-        "scope": req.scope,
-        "binding_message": req.binding_message,
+        "request": request_object,
         "delivery": delivery,
         "verification_uri_base": sentin8_auth_url.trim_end_matches('/'),
-        "act_sub": act_sub,
-        "act_email": act_email,
     });
 
     let resp = client
@@ -387,7 +451,7 @@ pub async fn delegate_poll(
         poll_instance_cid
     };
     let form_body = format!(
-        "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Aciba&auth_req_id={}&client_id={}",
+        "grant_type=urn%3Aopenid%3Aparams%3Agrant-type%3Aciba&auth_req_id={}&client_id={}",
         auth_req_id, poll_client_id,
     );
     // - under `fapi_2` (`require_dpop = true`) the

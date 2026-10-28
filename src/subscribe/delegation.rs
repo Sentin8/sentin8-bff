@@ -43,11 +43,14 @@ pub async fn start_delegation_poll(
             let form = vec![
                 (
                     "grant_type".to_string(),
-                    // RFC 9126 registered CIBA URN - must match the grant router in
-                    // Sentin8:Auth (oauth.rs) and `ciba.rs` delegate_poll. The previous
-                    // `urn:openid:params:...` name returned 400 unsupported_grant_type
-                    // forever, so the delegated token was never minted.
-                    "urn:ietf:params:oauth:grant-type:ciba".to_string(),
+                    // OpenID CIBA's registered URN - must match the grant router in
+                    // Sentin8:Auth (oauth.rs) + discovery's grant_types_supported
+                    // (urn:openid:params:grant-type:ciba; the same URN the DCR
+                    // registers the client with). A previous drift to
+                    // `urn:ietf:params:oauth:grant-type:ciba` returned 400
+                    // unsupported_grant_type forever, so the delegated token was
+                    // never minted.
+                    "urn:openid:params:grant-type:ciba".to_string(),
                 ),
                 ("auth_req_id".to_string(), auth_req_id.clone()),
                 ("client_id".to_string(), oauth_client_id.clone()),
