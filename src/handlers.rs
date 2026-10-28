@@ -649,14 +649,63 @@ async fn resolve_app_instance(state: &AppState, headers: &HeaderMap) -> Option<A
 /// resolves the caller's profile, roles, groups, and LIVE effective scopes
 /// from Auth's `GET /oauth/userinfo` using the session's own user access
 /// token as the bearer. Auth verifies the token server-side (SEC-).
+/// Process-singleton certificate-identity HTTP client for AUTH identity
+/// calls (DPoPRS-1): presents the BFF's own `-tls` workload certificate so
+/// auth's userinfo gate admits the call as a sender-constraint carrier for
+/// forwarded DPoP-bound user tokens (RFC 8705 §3 - the certificate IS the
+/// sender constraint). Built once per process; `None` (bearer fallback)
+/// when the `-tls` pair cannot be minted (fail-open on enrichment, never
+/// on gatekeeping - the bearer path still authenticates the session).
+fn identity_client(auth_base_url: &str) -> reqwest::Client {
+    static CLIENT: std::sync::OnceLock<Option<reqwest::Client>> = std::sync::OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            // The registered `{dash}-tls` workload (registration.rs's
+            // m2m grant name).
+            let tls_workload = "sentin8-bff-tls";
+            let ca_path = sentin8::auth::m2m::platform_ca_pem_path();
+            let pair =
+                sentin8::auth::m2m::ensure_workload_certificate_blocking(
+                    auth_base_url,
+                    tls_workload,
+                    &ca_path,
+                );
+            let Some(pair) = pair else {
+                tracing::warn!(workload = %tls_workload, "bff: -tls identity unavailable - userinfo enrichment degrades to bearer-only");
+                return None;
+            };
+            let cfg = sentin8::middleware::mtls::MtlsConfig::new(
+                &pair.ca_cert_path,
+                &pair.cert_path,
+                &pair.key_path,
+            );
+            match sentin8::middleware::mtls::build_mtls_client(&cfg) {
+                Ok(c) => {
+                    tracing::info!(workload = %tls_workload, "bff: identity client presents its workload certificate (dpops-1)");
+                    Some(c)
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "bff: identity client build failed - bearer fallback");
+                    None
+                }
+            }
+        })
+        .clone()
+        .unwrap_or_else(reqwest::Client::new)
+}
+
 async fn auth_userinfo(state: &AppState, user_token: &str) -> Result<serde_json::Value, String> {
     let url = format!(
         "{}/oauth/userinfo",
         state.config.sentin8_auth_base_url.trim_end_matches('/')
     );
-    let client = reqwest::Client::builder()
-        .build()
-        .map_err(|e| format!("client build: {e}"))?;
+    // DPoPRS-1: the BFF presents its OWN `-tls` workload certificate on
+    // the identity call - auth's userinfo gate admits a CA-verified
+    // platform-workload caller as the sender-constraint carrier for the
+    // forwarded DPoP-bound user token (RFC 8705 §3). The enriched call
+    // degrades harmlessly without the cert (bearer-only → 401 → bare
+    // session metadata) but the cert channel restores groups/profile.
+    let client = identity_client(state.config.sentin8_auth_base_url.as_str());
     let resp = client
         .get(&url)
         .bearer_auth(user_token)
