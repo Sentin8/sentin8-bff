@@ -128,7 +128,7 @@ pub async fn serve(
     let counter = sentin8::middleware::RequestCounter::new();
     sentin8::middleware::spawn_flush_loop(
         counter.clone(),
-        // VALKEYDERIVE-1: override → else the plane-derived URL.
+        // override → else the plane-derived URL.
         std::env::var("VALKEY_URL")
             .ok()
             .filter(|s| !s.trim().is_empty())
@@ -255,7 +255,7 @@ pub async fn serve(
                     // Option A - CIBA delegation attach.
                     // Missing here made every delegated app call fail the
                     // CORS preflight at the browser (TypeError: Failed to
-                    // fetch) - .
+                    // fetch).
                     axum::http::HeaderName::from_static("x-bff-delegation"),
                     axum::http::HeaderName::from_static("authorization"),
                 ])

@@ -57,7 +57,7 @@ impl Bff8Config {
                 .expect("SENTIN8_BFF_PORT must be set by captain")
                 .parse()
                 .expect("SENTIN8_BFF_PORT must be a valid u16"),
-            // VALKEYDERIVE-1 (group DESIGN.md §3.1): explicit env override,
+            // (group DESIGN.md §3.1): explicit env override,
             // else the plane-derived URL - the historical `/2` DB number was
             // inert (GLIDE connects at DB 0; ACLs are the isolation).
             valkey_url: env::var("SENTIN8_BFF_VALKEY_URL")

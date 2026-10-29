@@ -3,7 +3,7 @@
 // SPDX-FileCopyrightText: Copyright Contributors to the Sentin8:BFF
 // SPDX-License-Identifier: Apache-2.0
 
-//! DCR (Dynamic Client Registration) for BFF (-).
+//! DCR (Dynamic Client Registration) for BFF .
 //!
 //! BFF uses DCR to auto-register OAuth clients with Auth when provisioning
 //! app instances. This module implements the DCR client, registry table,

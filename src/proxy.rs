@@ -619,7 +619,7 @@ async fn resolve_effective_token(
     _tls_env_id: Option<&str>,
 ) -> Result<Option<String>, (axum::http::StatusCode, String)> {
     // `target_service` is the canonical colon identity (`sentin8:auth`,
-    // `bank8:ledger` - ), resolved from the
+    // `bank8:ledger`), resolved from the
     // proxy path by `resolve_service_identity`. Normalize any caller input.
     let target_service = &sentin8::config::canonical_service_type(target_service);
     let Some(token) = sess.access_token(key).ok() else {

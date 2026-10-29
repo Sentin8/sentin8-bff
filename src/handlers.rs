@@ -29,7 +29,7 @@ pub struct AppState {
     pub pool: sqlx::PgPool,
     /// Bus client for the WS consumer (M2M token with bus:consume scope).
     pub sentin8_bus_consumer_client: sentin8::bus::client::BusClient,
-    /// Shield engine ( - ): additional gate for admin
+    /// Shield engine : additional gate for admin
     /// endpoints (the proxy data path stays scope-gated; no policy on hot path).
     pub policy: Arc<crate::policy::Engine>,
 }

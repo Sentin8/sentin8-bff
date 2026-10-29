@@ -43,28 +43,39 @@ use uuid::Uuid;
 use crate::handlers::AppState;
 use crate::proxy::get_sentin8_bff_m2m_token;
 
-/// Process-global CIBA client-signing key (ES256 P-256, PKCS#8 PEM).
+/// CIBA client-signing key (ES256 P-256, PKCS#8 PEM).
 ///
 /// Sentin8:Auth's CIBA contract (as it stands - FAPI-CIBA §7.1) REQUIRES the
 /// signed request object: a `bc-authorize` push without `request`/`request_uri`
-/// rejects `invalid_request`, and the client identity must be one the customer
-/// env's auth can verify. So the BFF (the delegation broker, the CIBA CLIENT)
-/// holds one ES256 keypair per process and REGISTERs its public JWK on the
-/// CIBA client it provisions (the `jwks` DCR metadata - see
-/// `sentin8-app/src/dcr.rs::register_oauth_client_with_grants`); every
-/// `bc-authorize` push then carries `request = ciba_request_object(...)`
-/// signed by this key, and Auth verifies it against the client's registered
-/// JWK. Restarts rotate the key: the provisioning path re-registers (DCR
-/// update, upsert semantics) before any new push, so verification never
-/// races a stale key.
+/// rejects `invalid_request`, and the AS must verify the client's signature
+/// against the client's REGISTERED keys (inline `jwks` metadata). The BFF
+/// (the delegation broker, the CIBA CLIENT) therefore shares ONE
+/// deployment-stable keypair with the provisioning plane:
+///
+/// - `SENTIN8_BFF_CIBA_KEY_PEM` - the path to the P-256 PKCS#8 PEM. The
+///   provisioning plane (Sentin8:App) reads the SAME path and attaches the
+///   derived public JWK when it DCR-registers the CIBA client (the `jwks`
+///   attach point in `sentin8-app/src/dcr.rs::register_oauth_client_with_grants`).
+///   A deployment-stable file keeps verification alive across BFF restarts.
+/// - With no path configured the BFF falls back to its per-process DPoP
+///   keypair - signatures verify only until the process restarts (dev
+///   posture; the registered JWK goes stale and the next push fails with a
+///   clear error until re-provisioned).
 pub(crate) fn ciba_client_key_pem() -> String {
-    use crate::handlers::dpop_key_pem;
-    // Reuse the SAME ES256 key the DPoP path holds: one process keypair
-    // serves both proofs (per-proof `jwk` headers) and the CIBA request
-    // object (registered JWK). Distinct concerns, same key material - both
-    // are "the BFF's client key" and the registration refresh keeps the
-    // surface in sync.
-    dpop_key_pem()
+    if let Ok(path) = std::env::var("SENTIN8_BFF_CIBA_KEY_PEM") {
+        if !path.trim().is_empty() {
+            if let Ok(pem) = std::fs::read_to_string(path.trim()) {
+                if pem.contains("PRIVATE KEY") {
+                    return pem;
+                }
+                tracing::error!("bff: CIBA key file does not look like a PEM private key - falling back");
+            } else {
+                tracing::error!("bff: CIBA key path configured but unreadable - falling back");
+            }
+        }
+    }
+    // Fallback: the per-process ES256 key (same keygen the DPoP proofs use).
+    crate::handlers::dpop_key_pem()
 }
 
 /// Valkey key prefix for cached delegation tokens.

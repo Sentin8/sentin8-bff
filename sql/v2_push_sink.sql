@@ -32,7 +32,7 @@ CREATE POLICY bff_push_tokens_dml ON bff.push_tokens
     USING (sentin8_context_initialized() AND env_id = sentin8_current_env_id())
     WITH CHECK (sentin8_context_initialized() AND env_id = sentin8_current_env_id());
 
--- GRANT-2 (D7 outbox pattern): the BFF service role runs these tables'
+-- (D7 outbox pattern): the BFF service role runs these tables'
 -- DML through its own DSN (the drain loop SELECTs + UPDATEs pushed;
 -- push.rs INSERTs/DELETEs tokens; dcr.rs owns dcr_clients).
 CREATE TABLE IF NOT EXISTS bff.post_outbox (
@@ -70,7 +70,7 @@ BEGIN
 END;
 $fn$;
 
--- GRANT-2 (D7 outbox pattern): the BFF service role runs these tables'
+-- (D7 outbox pattern): the BFF service role runs these tables'
 -- DML through its own DSN (the drain loop SELECTs + UPDATEs pushed;
 -- push.rs INSERTs/DELETEs tokens; dcr.rs owns dcr_clients).
 -- AFTER every table exists - GRANT on a not-yet-created table aborts the
