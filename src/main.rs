@@ -56,8 +56,12 @@ async fn main() -> anyhow::Result<()> {
         return registration::print(section);
     }
 
-    // Install the Graviola PQ crypto provider before any reqwest HTTPS call.
-    let _ = sentin8::tls::crypto::sentin8_pq_provider().install_default();
+    // Install the platform PQ crypto provider before any TLS traffic: the
+    // assembly merges the PQ verification algorithms AND the ML-DSA key
+    // provider (PQCLIENT-1) - the raw graviola install cannot load the
+    // exclusive family's workload keys (glide's valkey mTLS would fail
+    // "unhandled pkcs8 format").
+    sentin8::tls::crypto::install_platform_provider();
 
     let _ = dotenvy::dotenv();
     let _ = sentin8::middleware::error_metrics::init_tracing_with_metrics(
