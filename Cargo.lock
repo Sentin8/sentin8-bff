@@ -4043,7 +4043,7 @@ dependencies = [
 
 [[package]]
 name = "sentin8-bff"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -4079,7 +4079,7 @@ dependencies = [
 
 [[package]]
 name = "sentin8-bff-contracts"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "serde",
@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "sentin8-bff-sdk"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "sentin8-bff-contracts",
 ]
