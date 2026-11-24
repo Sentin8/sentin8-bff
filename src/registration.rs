@@ -139,6 +139,7 @@ pub fn print(section: Option<String>) -> anyhow::Result<()> {
         service_type: "sentin8:bff",
         subdomain: "bff",
         health_path: "/v1/health",
+        exposure: "external",
         admin_scopes: &[
             // The BFF's admin surface is proxy configuration read-only
             // (mappings/backends live in Sentin8:Proxy; the BFF exposes none).
