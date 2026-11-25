@@ -129,7 +129,9 @@ mod tests {
         let req = DcrRegisterRequest {
             sentin8_auth_domain: "auth.ops.sys.example.com".into(),
             client_name: "eBank Web".into(),
-            redirect_uri: "https://ebank.prod.ibank.local/auth/callback".into(),
+            // Org domains are `{org_slug}.{platform_domain}` (the
+            // `org_domain()` default) - no extra `.local` label.
+            redirect_uri: "https://ebank.prod.ibank.example.com/auth/callback".into(),
             scopes: vec!["openid".into(), "ledger:accounts:read".into()],
         };
         let v = serde_json::to_value(&req).unwrap();
