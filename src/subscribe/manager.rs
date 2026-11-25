@@ -18,7 +18,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::AppState;
-use crate::session::SESSION_COOKIE;
 use axum::http::HeaderMap;
 
 /// Request body for `POST /subscribe`.
@@ -51,7 +50,7 @@ pub async fn subscribe_change(
     headers: HeaderMap,
     Json(change): Json<SubscriptionChange>,
 ) -> Result<Json<SubscriptionResponse>, StatusCode> {
-    let session_id = match extract_cookie(&headers, SESSION_COOKIE) {
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
@@ -131,7 +130,7 @@ pub async fn subscribe_close(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<StatusCode, StatusCode> {
-    let session_id = match extract_cookie(&headers, SESSION_COOKIE) {
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
@@ -151,18 +150,6 @@ pub async fn subscribe_close(
     tracing::info!(session_id = %session_id, "bff: subscription closed");
 
     Ok(StatusCode::NO_CONTENT)
-}
-
-/// Extract a cookie value from the Cookie header.
-fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie = headers.get("cookie")?.to_str().ok()?;
-    for part in cookie.split(';') {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix(&format!("{name}=")) {
-            return Some(val.to_string());
-        }
-    }
-    None
 }
 
 // ── Push subscription sink (BFF-5) ─────────────────────────────────────
@@ -190,7 +177,7 @@ pub async fn subscribe_push_register(
     headers: HeaderMap,
     Json(req): Json<PushRegisterRequest>,
 ) -> Result<Json<PushRegisterResponse>, StatusCode> {
-    let session_id = extract_cookie(&headers, SESSION_COOKIE).ok_or(StatusCode::UNAUTHORIZED)?;
+    let session_id = crate::session::extract_session_id(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
     let sess = state
         .store
         .get(&session_id)
@@ -223,7 +210,7 @@ pub async fn subscribe_push_delete(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<PushRegisterResponse>, StatusCode> {
-    let session_id = extract_cookie(&headers, SESSION_COOKIE).ok_or(StatusCode::UNAUTHORIZED)?;
+    let session_id = crate::session::extract_session_id(&headers).ok_or(StatusCode::UNAUTHORIZED)?;
     let sess = state
         .store
         .get(&session_id)

@@ -143,8 +143,10 @@ pub async fn proxy(
         }
     };
 
-    // Extract session cookie and resolve session.
-    let session_id = extract_session_cookie(req.headers());
+    // Extract the session credential - cookie (browser) or bearer (native).
+    // Both resolve to the same Valkey record, so D2 binding, CSRF and token
+    // decryption below are shared.
+    let session_id = crate::session::extract_session_id(req.headers());
     let sess = if let Some(ref sid) = session_id {
         state.store.get(sid).await.ok().flatten()
     } else {
@@ -211,13 +213,33 @@ pub async fn proxy(
     if let Some(ref sess) = sess {
         let key = session::derive_key(&state.config.encryption_key);
 
-        //CSRF protection: validate X-BFF-CSRF header on mutation requests.
+        // CSRF protection: validate X-BFF-CSRF on mutation requests.
+        //
+        // CSRF is an attack on *ambient* credentials: a browser attaches the
+        // session cookie automatically to a request forged by another origin.
+        // A bearer credential is NOT ambient - a hostile page cannot make the
+        // app attach its own `Authorization` header, so there is no CSRF
+        // surface on that transport.
+        //
+        // We still require the header from bearer clients in this release.
+        // Rationale: keeping one code path means web and native can never
+        // diverge in a security-relevant branch, and the cost to the client is
+        // one header it already receives from `GET /auth/session`. Relaxing it
+        // is a deliberate, separately-tested follow-up - see
+        // `docs/01-bff-native-session.md` §3.4.
+        let bearer_authenticated =
+            session::bearer_session_token(&req_headers).is_some();
         if state.config.csrf_enabled && is_mutation(&method) {
             let csrf_header = req_headers
                 .get("x-bff-csrf")
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
             if csrf_header.is_empty() || csrf_header != sess.csrf_token {
+                tracing::warn!(
+                    bearer = bearer_authenticated,
+                    method = %method,
+                    "bff: proxy REJECTED - CSRF token mismatch"
+                );
                 return (StatusCode::FORBIDDEN, "CSRF token mismatch").into_response();
             }
         }
@@ -433,17 +455,6 @@ pub async fn proxy(
     }
 }
 
-fn extract_session_cookie(headers: &axum::http::HeaderMap) -> Option<String> {
-    let cookie = headers.get("cookie")?.to_str().ok()?;
-    for part in cookie.split(';') {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix("bff-session=") {
-            return Some(val.to_string());
-        }
-    }
-    None
-}
-
 fn ensure_leading_slash(s: &str) -> String {
     if s.starts_with('/') {
         s.to_string()
@@ -467,6 +478,25 @@ struct RefreshTokenResponse {
     access_token: String,
     refresh_token: Option<String>,
     expires_in: u64,
+}
+
+/// Which Auth authority should refresh this session's tokens?
+///
+/// Prefers the issuer recorded on the session at callback time. Falls back to
+/// the configured platform issuer for sessions created before that field
+/// existed - and for platform-BFF sessions, where the platform issuer *is* the
+/// right answer.
+///
+/// This matters because a tenant instance's users authenticate at
+/// `auth.{env}.{org}`, not at the platform auth. Refreshing against the wrong
+/// authority fails, and the browser silently degrades to "sign in again" while
+/// a native client has no browser to fall back to.
+fn session_refresh_issuer<'a>(sess: &'a session::Session, platform: &'a str) -> &'a str {
+    if sess.issuer.is_empty() {
+        platform
+    } else {
+        sess.issuer.as_str()
+    }
 }
 
 async fn refresh_access_token(
@@ -555,7 +585,7 @@ async fn refresh_session_token(state: &ProxyState, sess: &session::Session) {
         }
     };
     match refresh_access_token(
-        &state.config.sentin8_auth_base_url,
+        session_refresh_issuer(sess, &state.config.sentin8_auth_base_url),
         &refresh,
         &state.config.oauth_client_id,
     )
@@ -662,7 +692,7 @@ async fn resolve_effective_token(
         if let Ok(refresh) = sess.refresh_token(key) {
             if !refresh.is_empty() {
                 if let Ok(new_token) = refresh_access_token(
-                    &state.config.sentin8_auth_base_url,
+                    session_refresh_issuer(sess, &state.config.sentin8_auth_base_url),
                     &refresh,
                     &state.config.oauth_client_id,
                 )

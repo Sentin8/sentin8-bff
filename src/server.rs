@@ -143,6 +143,13 @@ pub async fn serve(
         .route("/auth/session", get(handlers::auth_session))
         .route("/auth/sign-out", post(handlers::auth_sign_out))
         .route("/auth/refresh", post(handlers::auth_refresh))
+        // Native session handoff (WS1): start a browser flow, then redeem
+        // the custom-scheme handoff for an opaque bearer session.
+        .route("/auth/native/start", post(handlers::auth_native_start))
+        .route(
+            "/auth/native/exchange",
+            post(handlers::auth_native_exchange),
+        )
         // Multi-session device management (bff DESIGN §4): the caller's active
         // sessions, per-session detail, per-session revoke (record destroy +
         // stored refresh-token revoke), revoke-all-others (current excluded).

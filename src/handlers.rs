@@ -1271,6 +1271,11 @@ pub async fn auth_callback(
     sess.scope = token_data.scope.clone().unwrap_or_default();
     sess.token_expiry = chrono::Utc::now().timestamp() + token_data.expires_in as i64;
     sess.subject_type = "user".into();
+    // Record which Auth minted these tokens. Refresh must go back to the SAME
+    // authority: a tenant-issuer session refreshed against the platform issuer
+    // fails, and the user is forced to sign in again.
+    sess.issuer = sentin8_auth_base_url.clone();
+    sess.transport = "cookie".into();
 
     if let Err(e) = sess.set_access_token(&token_data.access_token, &key) {
         return (
@@ -1297,6 +1302,14 @@ pub async fn auth_callback(
         )
             .into_response();
     }
+
+    // Detect a native flow FIRST: `redirect_to` below consumes `q.state`, and a
+    // native flow must never be treated as a browser redirect target.
+    let native_flow = q
+        .state
+        .as_deref()
+        .and_then(crate::native_session::parse_native_state)
+        .map(|s| s.to_string());
 
     // Redirect to the frontend with the session cookie set.
     // If state is empty or absent, default to "/" (the Dash homepage).
@@ -1329,6 +1342,17 @@ pub async fn auth_callback(
             "bff-pkce=; Path=/; Domain=.{cookie_domain}; HttpOnly; Secure; SameSite=None; Max-Age=0"
         )
     };
+    // ── Native handoff branch (WS1) ──────────────────────────────────────
+    //
+    // A native flow carries `state = native:<flow_id>`. It must NEVER set the
+    // session cookie: the app receives an opaque handoff code over the
+    // custom-scheme redirect and redeems it at `/auth/native/exchange`. Keeping
+    // this as a separate response builder (rather than adding a conditional
+    // header) guarantees a native flow cannot accidentally also mint a cookie.
+    if let Some(flow_id) = native_flow {
+        return native_handoff_response(&state, &flow_id, sess).await;
+    }
+
     Response::builder()
         .status(StatusCode::FOUND)
         .header("location", redirect_to)
@@ -1345,6 +1369,312 @@ pub struct CallbackQuery {
     pub code: String,
     #[serde(default)]
     pub state: Option<String>,
+}
+
+// ── Native session handoff (WS1) ───────────────────────────────────────────
+
+/// `POST /auth/native/start` request body.
+#[derive(Debug, Deserialize)]
+pub struct NativeStartRequest {
+    /// App-generated, stable per install.
+    pub device_id: String,
+    /// Display only, sanitized for length.
+    #[serde(default)]
+    pub device_name: String,
+    /// `android` | `ios`.
+    #[serde(default)]
+    pub platform: String,
+    /// `base64url(sha256(SPKI))` of the device's proof-of-possession key.
+    pub challenge: String,
+}
+
+/// `POST /auth/native/start` response.
+#[derive(Debug, serde::Serialize)]
+pub struct NativeStartResponse {
+    pub flow_id: String,
+    pub authorize_url: String,
+    pub expires_in: u64,
+}
+
+/// `POST /auth/native/exchange` request body.
+#[derive(Debug, Deserialize)]
+pub struct NativeExchangeRequest {
+    /// The single-use code delivered over the custom-scheme redirect.
+    pub handoff: String,
+    pub device_id: String,
+    /// base64url SEC1-uncompressed public key of the device key.
+    pub public_key: String,
+    /// base64url (or DER-as-base64) signature over the handoff code.
+    pub proof: String,
+}
+
+/// `POST /auth/native/exchange` response.
+#[derive(Debug, serde::Serialize)]
+pub struct NativeExchangeResponse {
+    /// Opaque BFF session id. NOT an OAuth token.
+    pub session_token: String,
+    pub csrf_token: String,
+    pub expires_at: i64,
+}
+
+/// `POST /auth/native/start` - begin a native enrollment flow.
+///
+/// Unauthenticated by design (the user has not signed in yet). The flow is
+/// bound to the app instance resolved from this request's TLS headers, so a
+/// handoff minted here can only be redeemed on the same instance.
+pub async fn auth_native_start(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<NativeStartRequest>,
+) -> Result<Json<NativeStartResponse>, (StatusCode, String)> {
+    use base64::Engine as _;
+
+    if req.device_id.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "device_id is required".into()));
+    }
+    // The challenge is a SHA-256 digest, base64url, always 43 chars unpadded.
+    let challenge_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(req.challenge.trim())
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "challenge must be base64url(sha256(SPKI))".to_string(),
+            )
+        })?;
+    if challenge_bytes.len() != 32 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "challenge must be a SHA-256 digest (32 bytes)".into(),
+        ));
+    }
+
+    let (app_id, env_id) = crate::native_session::tenant_from_headers(&headers);
+    if app_id.is_empty() {
+        // An app BFF always carries an app id. On the platform BFF there is no
+        // instance to bind an enrollment to, so native enrollment is not
+        // meaningful - fail closed rather than minting an unbound flow.
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "native enrollment is only available on an app-instance BFF".into(),
+        ));
+    }
+
+    let flow_id = crate::native_session::mint_flow_id();
+    let record = crate::native_session::FlowRecord {
+        device_challenge: req.challenge.trim().to_string(),
+        app_id,
+        env_id,
+        device_id: req.device_id.trim().to_string(),
+        device_name: req.device_name.chars().take(64).collect(),
+        platform: req.platform.chars().take(16).collect(),
+    };
+    let payload = serde_json::to_string(&record)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    if let Err(e) = state
+        .store
+        .put_raw(
+            &format!("{}{}", crate::native_session::FLOW_PREFIX, flow_id),
+            &payload,
+            crate::native_session::FLOW_TTL_SECS,
+        )
+        .await
+    {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("flow store error: {e}"),
+        ));
+    }
+
+    // The authorize URL is the EXISTING browser endpoint with a native state.
+    // The hostname the client called is the instance's own, so the flow stays
+    // on the same BFF (same TLS headers, same session store).
+    let hostname = headers
+        .get("x-sentin8-hostname")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let base = if hostname.is_empty() {
+        String::new()
+    } else {
+        format!("https://{hostname}")
+    };
+    let authorize_url = format!(
+        "{base}/auth/login?state={}",
+        crate::native_session::native_state(&flow_id)
+    );
+
+    Ok(Json(NativeStartResponse {
+        flow_id,
+        authorize_url,
+        expires_in: crate::native_session::FLOW_TTL_SECS,
+    }))
+}
+
+/// `POST /auth/native/exchange` - redeem a handoff code for a session id.
+pub async fn auth_native_exchange(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<NativeExchangeRequest>,
+) -> Result<Json<NativeExchangeResponse>, (StatusCode, String)> {
+    use base64::Engine as _;
+    let unauthorized = || {
+        (
+            StatusCode::UNAUTHORIZED,
+            "invalid or expired handoff".to_string(),
+        )
+    };
+
+    let handoff_key = format!("{}{}", crate::native_session::HANDOFF_PREFIX, req.handoff.trim());
+
+    // Atomic single-use consume: GETDEL. A replay finds nothing.
+    let Some(raw) = state
+        .store
+        .take_raw(&handoff_key)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    else {
+        return Err(unauthorized());
+    };
+
+    let record: crate::native_session::HandoffRecord =
+        serde_json::from_str(&raw).map_err(|_| unauthorized())?;
+
+    // Bind to the SAME instance the flow was started on (D2 applied to
+    // enrollment).
+    let (app_id, _env_id) = crate::native_session::tenant_from_headers(&headers);
+    if !record.app_id.is_empty() && record.app_id != app_id {
+        tracing::warn!(
+            expected = %record.app_id,
+            presented = %app_id,
+            "bff: native exchange REJECTED - application binding mismatch"
+        );
+        return Err(unauthorized());
+    }
+
+    // The device must prove possession of the key it committed to at `start`.
+    let public_key = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(req.public_key.trim())
+        .or_else(|_| base64::engine::general_purpose::STANDARD.decode(req.public_key.trim()))
+        .map_err(|_| unauthorized())?;
+    let proof = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(req.proof.trim())
+        .or_else(|_| base64::engine::general_purpose::STANDARD.decode(req.proof.trim()))
+        .map_err(|_| unauthorized())?;
+
+    if let Err(reason) = crate::native_session::verify_device_proof(
+        &record.device_challenge,
+        &public_key,
+        req.handoff.trim().as_bytes(),
+        &proof,
+    ) {
+        tracing::warn!(reason = %reason, "bff: native exchange rejected - device proof");
+        return Err(unauthorized());
+    }
+
+    if record.device_id != req.device_id.trim() {
+        tracing::warn!("bff: native exchange rejected - device_id mismatch");
+        return Err(unauthorized());
+    }
+
+    // Load and mark the session as bearer-transported.
+    let mut sess = state
+        .store
+        .get(&record.session_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or_else(unauthorized)?;
+
+    sess.transport = "bearer".into();
+    sess.device_id = record.device_id.clone();
+    if let Err(e) = state.store.put(&sess.session_id, &sess).await {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("session update error: {e}"),
+        ));
+    }
+
+    tracing::info!(
+        session = %sess.session_id,
+        device_id = %sess.device_id,
+        "bff: native session established"
+    );
+
+    Ok(Json(NativeExchangeResponse {
+        session_token: sess.session_id.clone(),
+        csrf_token: sess.csrf_token.clone(),
+        expires_at: sess.token_expiry,
+    }))
+}
+
+/// Mint the handoff code and build the custom-scheme redirect.
+///
+/// Separate from the cookie path on purpose: a native flow must not also set a
+/// session cookie.
+async fn native_handoff_response(
+    state: &AppState,
+    flow_id: &str,
+    sess: session::Session,
+) -> Response {
+    let flow_key = format!("{}{}", crate::native_session::FLOW_PREFIX, flow_id);
+    let Some(flow_raw) = state.store.take_raw(&flow_key).await.ok().flatten() else {
+        // Unknown/expired flow: never redirect. The browser shows this page and
+        // the app falls back to its own timeout message.
+        return (
+            StatusCode::BAD_REQUEST,
+            [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            "<h1>Sign-in link expired</h1><p>Return to the app and try again.</p>",
+        )
+            .into_response();
+    };
+    let Ok(flow) = serde_json::from_str::<crate::native_session::FlowRecord>(&flow_raw) else {
+        return (StatusCode::BAD_REQUEST, "corrupt enrollment flow").into_response();
+    };
+
+    let handoff = crate::native_session::mint_handoff_code();
+    let record = crate::native_session::HandoffRecord {
+        session_id: sess.session_id.clone(),
+        device_challenge: flow.device_challenge.clone(),
+        device_id: flow.device_id.clone(),
+        app_id: flow.app_id.clone(),
+        env_id: flow.env_id.clone(),
+    };
+    let Ok(payload) = serde_json::to_string(&record) else {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "encode error").into_response();
+    };
+    if let Err(e) = state
+        .store
+        .put_raw(
+            &format!("{}{}", crate::native_session::HANDOFF_PREFIX, handoff),
+            &payload,
+            crate::native_session::HANDOFF_TTL_SECS,
+        )
+        .await
+    {
+        tracing::error!(error = %e, "bff: native handoff store failed");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "handoff store error").into_response();
+    }
+
+    tracing::info!(
+        session = %sess.session_id,
+        device_id = %flow.device_id,
+        "bff: native handoff minted"
+    );
+
+    // Clear the PKCE cookie so a failed exchange cannot leave a stale verifier
+    // behind. Deliberately NO session cookie on this path.
+    let pkce_clear = "bff-pkce=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0";
+
+    let location = format!("com.bank8.ebank:/oauth2redirect?handoff={handoff}");
+    Response::builder()
+        .status(StatusCode::FOUND)
+        .header("location", location)
+        // Clear the PKCE cookie; deliberately NO session cookie.
+        .header("set-cookie", pkce_clear)
+        .header("cache-control", "no-store")
+        .body(Body::empty())
+        .unwrap_or_else(|_| {
+            (StatusCode::INTERNAL_SERVER_ERROR, "response build error").into_response()
+        })
 }
 
 #[derive(Debug, Deserialize)]
@@ -1365,7 +1695,7 @@ pub async fn auth_session(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let session_id = match extract_cookie(&headers, session::SESSION_COOKIE) {
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => return Err((StatusCode::UNAUTHORIZED, "no session".into())),
     };
@@ -1499,8 +1829,8 @@ pub async fn service_action(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Result<Response, (StatusCode, String)> {
-    // Validate session - extract the session cookie.
-    let session_id = match extract_cookie(&headers, session::SESSION_COOKIE) {
+    // Validate session - cookie (browser) or bearer (native).
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => return Err((StatusCode::UNAUTHORIZED, "no session".into())),
     };
@@ -1639,7 +1969,8 @@ fn urlencoding(s: &str) -> String {
 ///
 ///
 pub async fn auth_sign_out(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    if let Some(session_id) = extract_cookie(&headers, session::SESSION_COOKIE) {
+    let session_credential = crate::session::extract_session_id(&headers);
+    if let Some(session_id) = session_credential {
         // Get the session to find the refresh token.
         if let Ok(Some(sess)) = state.store.get(&session_id).await {
             // Revoke the refresh token at Auth.
@@ -1718,8 +2049,8 @@ pub async fn auth_refresh(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Response, (StatusCode, String)> {
-    let cookie = extract_cookie(&headers, session::SESSION_COOKIE)
-        .or_else(|| extract_cookie(&headers, "sentin8_session"))
+    let cookie = crate::session::extract_session_id(&headers)
+        .or_else(|| extract_cookie(&headers, session::LEGACY_SESSION_COOKIE))
         .ok_or((StatusCode::UNAUTHORIZED, "no session cookie".into()))?;
 
     let session = state

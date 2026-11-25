@@ -22,7 +22,7 @@ use axum::{
 };
 use serde_json::Value;
 
-use crate::handlers::{extract_cookie, AppState};
+use crate::handlers::AppState;
 use crate::session::{self, Session};
 
 /// Bounded SCAN limit for the subject-scoped session listing (matches the
@@ -40,7 +40,7 @@ async fn caller_session(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<Session, (StatusCode, String)> {
-    let session_id = extract_cookie(headers, session::SESSION_COOKIE)
+    let session_id = crate::session::extract_session_id(headers)
         .ok_or((StatusCode::UNAUTHORIZED, "no session".to_string()))?;
     let sess = state
         .store

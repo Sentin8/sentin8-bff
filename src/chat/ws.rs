@@ -50,7 +50,6 @@ use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, Duration};
 
 use crate::handlers::AppState;
-use crate::session::SESSION_COOKIE;
 
 /// Broadcast channel for per-connection chat frames.
 type ChatSender = broadcast::Sender<serde_json::Value>;
@@ -79,7 +78,7 @@ pub async fn ws_handler(
     State(_state): State<AppState>,
     headers: HeaderMap,
 ) -> Response {
-    let session_id = match extract_cookie(&headers, SESSION_COOKIE) {
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => {
             return axum::response::IntoResponse::into_response((
@@ -232,16 +231,4 @@ async fn chat_connection(socket: WebSocket, session_id: String) {
     forward_task.abort();
     ping_task.abort();
     tracing::info!(session_id = %session_id, "bff: ws chat disconnected");
-}
-
-/// Extract a cookie value from the Cookie header.
-fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie = headers.get("cookie")?.to_str().ok()?;
-    for part in cookie.split(';') {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix(&format!("{name}=")) {
-            return Some(val.to_string());
-        }
-    }
-    None
 }

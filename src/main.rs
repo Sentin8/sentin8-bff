@@ -24,6 +24,8 @@ mod dcr;
 mod handlers;
 #[allow(dead_code)]
 mod key_rotation;
+
+mod native_session;
 #[allow(dead_code)]
 mod policy;
 mod proxy;

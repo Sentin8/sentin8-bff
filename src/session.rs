@@ -25,6 +25,69 @@ use uuid::Uuid;
 /// design ).
 pub const SESSION_COOKIE: &str = "bff-session";
 
+/// Legacy session cookie name accepted by `/auth/refresh` only.
+pub const LEGACY_SESSION_COOKIE: &str = "sentin8_session";
+
+/// Resolve the caller's session id from EITHER credential form.
+///
+/// Two transports carry the same opaque Valkey session id:
+///
+/// * **cookie** (`bff-session`) - the browser. HttpOnly, ambient, sent by the
+///   browser on every same-site request.
+/// * **header** (`Authorization: Bearer <session id>`) - native clients. There
+///   is no cookie jar on a mobile target, so the app persists the session id
+///   itself and presents it explicitly (WS1).
+///
+/// Both resolve to the same `bff:session:{id}` record, so every downstream
+/// check - D2 app binding, CSRF, token decryption, delegation - is shared. This
+/// is deliberately the ONE place credentials are read; before WS1 six copies of
+/// the cookie parse existed and each would have needed the bearer branch.
+///
+/// Precedence is header-first: an explicit credential beats an ambient one, and
+/// the two never legitimately disagree on a request (a native client sends no
+/// cookie). A malformed or empty `Bearer` falls through to the cookie rather
+/// than failing the request, so a client that sets an empty header still works.
+pub fn extract_session_id(headers: &axum::http::HeaderMap) -> Option<String> {
+    if let Some(token) = bearer_session_token(headers) {
+        return Some(token);
+    }
+    extract_cookie(headers, SESSION_COOKIE)
+}
+
+/// Parse `Authorization: Bearer <token>`.
+///
+/// Scheme matching is case-insensitive (RFC 9110 §11.1: the auth scheme is a
+/// token, and comparisons are case-insensitive). Returns `None` for absent,
+/// non-Bearer, or empty credentials - this is a *lookup*, not an error channel;
+/// callers decide what an absent session means (usually 401).
+pub fn bearer_session_token(headers: &axum::http::HeaderMap) -> Option<String> {
+    let raw = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?;
+    let mut parts = raw.splitn(2, ' ');
+    let scheme = parts.next()?;
+    if !scheme.eq_ignore_ascii_case("bearer") {
+        return None;
+    }
+    let token = parts.next()?.trim();
+    if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    }
+}
+
+/// Read one cookie value from the `Cookie` header.
+pub fn extract_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    let cookie = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
+    let prefix = format!("{name}=");
+    for part in cookie.split(';') {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix(prefix.as_str()) {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
 /// Auth's session cookie name. BFF clears it on sign-out so apps can
 /// route sign-out through BFF only - they never call Auth directly.
 pub const SENTIN8_AUTH_SESSION_COOKIE: &str = "__session";
@@ -105,6 +168,30 @@ pub struct Session {
     pub csrf_token: String,
     pub created_at: i64,
     pub last_accessed_at: i64,
+
+    /// Absolute base URL of the Auth issuer that minted this session's tokens.
+    ///
+    /// Needed because `refresh_access_token` used to assume the **platform**
+    /// issuer. A session created against a tenant issuer (`auth.{env}.{org}`)
+    /// would then try to refresh at the wrong authority and force the user to
+    /// sign in again. Empty on sessions created before this field existed;
+    /// callers fall back to the configured platform issuer.
+    #[serde(default)]
+    pub issuer: String,
+
+    /// How this session's credential is presented: `"cookie"` or `"bearer"`.
+    ///
+    /// Provenance only - no security decision keys off it (D2 binding and CSRF
+    /// apply identically to both). Recorded so sign-out can clear the right
+    /// surface and so operator tooling can tell a native session from a browser
+    /// one.
+    #[serde(default)]
+    pub transport: String,
+
+    /// App-generated device identifier for native sessions (empty for cookie
+    /// sessions). Used to correlate a session with its push registration.
+    #[serde(default)]
+    pub device_id: String,
 }
 
 impl Session {
@@ -124,6 +211,9 @@ impl Session {
             csrf_token: Uuid::new_v4().to_string(),
             created_at: chrono::Utc::now().timestamp(),
             last_accessed_at: chrono::Utc::now().timestamp(),
+            issuer: String::new(),
+            transport: String::new(),
+            device_id: String::new(),
         }
     }
 
@@ -410,6 +500,35 @@ impl SessionStore {
         Ok(())
     }
 
+    /// Store an arbitrary JSON payload under `key` with its own TTL.
+    ///
+    /// Used by the native enrollment flow (`bff:native_flow:*`,
+    /// `bff:native_handoff:*`): those records are not `Session`s but need the
+    /// same Valkey transport and expiry semantics.
+    pub async fn put_raw(
+        &self,
+        key: &str,
+        value: &str,
+        ttl_seconds: u64,
+    ) -> Result<(), glide::GlideError> {
+        use glide::AsyncCommands;
+        let conn = (*self.valkey).clone();
+        let _: () = conn.set_ex(key, value, ttl_seconds).await?;
+        Ok(())
+    }
+
+    /// Atomically read and delete `key` (`GETDEL`); `None` when absent.
+    ///
+    /// Single-use by construction: two concurrent redemptions cannot both see
+    /// the record, which is what makes a handoff code non-replayable under a
+    /// race rather than merely "unlikely to be replayed".
+    pub async fn take_raw(&self, key: &str) -> Result<Option<String>, glide::GlideError> {
+        use glide::AsyncCommands;
+        let conn = (*self.valkey).clone();
+        let value: Option<String> = conn.get_del(key).await?;
+        Ok(value)
+    }
+
     /// List session ids via SCAN (bounded - re-wrap scan pass). SCAN keeps
     /// the shared Valkey responsive (KEYS would block under load).
     pub async fn list_session_ids(&self, limit: usize) -> Result<Vec<String>, glide::GlideError> {
@@ -450,5 +569,108 @@ impl SessionStore {
     ///used by the proxy to cache exchanged tokens.
     pub fn valkey_connection(&self) -> glide::GlideClient {
         (*self.valkey).clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderMap;
+
+    fn headers_with(pairs: &[(&str, &str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(
+                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                v.parse().unwrap(),
+            );
+        }
+        h
+    }
+
+    #[test]
+    fn bearer_is_read() {
+        let h = headers_with(&[("authorization", "Bearer abc123")]);
+        assert_eq!(extract_session_id(&h).as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn scheme_is_case_insensitive() {
+        // RFC 9110 §11.1: the auth scheme is a token; comparison ignores case.
+        for raw in ["bearer tok", "BEARER tok", "BeArEr tok"] {
+            let h = headers_with(&[("authorization", raw)]);
+            assert_eq!(extract_session_id(&h).as_deref(), Some("tok"), "{raw}");
+        }
+    }
+
+    #[test]
+    fn cookie_still_works() {
+        let h = headers_with(&[("cookie", "a=1; bff-session=sess-9; z=2")]);
+        assert_eq!(extract_session_id(&h).as_deref(), Some("sess-9"));
+    }
+
+    #[test]
+    fn bearer_wins_over_cookie() {
+        // An explicit credential beats an ambient one.
+        let h = headers_with(&[
+            ("authorization", "Bearer from-header"),
+            ("cookie", "bff-session=from-cookie"),
+        ]);
+        assert_eq!(extract_session_id(&h).as_deref(), Some("from-header"));
+    }
+
+    #[test]
+    fn empty_or_malformed_bearer_falls_back_to_cookie() {
+        // A client that sets an empty header must not break its own session.
+        for raw in ["Bearer ", "Bearer", "  ", "", "Basic dXNlcjpwdw=="] {
+            let h = headers_with(&[
+                ("authorization", raw),
+                ("cookie", "bff-session=from-cookie"),
+            ]);
+            assert_eq!(
+                extract_session_id(&h).as_deref(),
+                Some("from-cookie"),
+                "raw={raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_credentials_is_none() {
+        assert_eq!(extract_session_id(&HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn other_cookie_names_do_not_match() {
+        // A cookie whose name merely ENDS with the session name must not match
+        // (prefix matching, not substring).
+        let h = headers_with(&[("cookie", "x-bff-session=wrong; other=1")]);
+        assert_eq!(extract_session_id(&h), None);
+    }
+
+    #[test]
+    fn legacy_cookie_is_read_explicitly() {
+        let h = headers_with(&[("cookie", "sentin8_session=legacy-1")]);
+        assert_eq!(
+            extract_cookie(&h, LEGACY_SESSION_COOKIE).as_deref(),
+            Some("legacy-1")
+        );
+    }
+
+    #[test]
+    fn old_session_json_deserializes() {
+        // Sessions written before `issuer`/`transport`/`device_id` existed must
+        // still load - they are `#[serde(default)]`, so no migration is needed.
+        let legacy = r#"{
+            "session_id":"s1","user_id":"u1","org_id":"o1","env_id":"e1",
+            "application_id":null,"access_token_enc":[],"refresh_token_enc":[],
+            "token_expiry":0,"scope":"","roles":"","subject_type":"user",
+            "csrf_token":"c1","created_at":0,"last_accessed_at":0
+        }"#;
+        let s: Session = serde_json::from_str(legacy).expect("legacy session parses");
+        assert_eq!(s.session_id, "s1");
+        assert!(s.issuer.is_empty());
+        assert!(s.transport.is_empty());
+        assert!(s.device_id.is_empty());
     }
 }

@@ -4097,6 +4097,7 @@ dependencies = [
  "futures-util",
  "hyper",
  "jsonwebtoken",
+ "p256",
  "rand 0.8.8",
  "reqwest 0.12.28",
  "rustls",

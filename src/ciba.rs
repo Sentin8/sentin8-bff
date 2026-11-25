@@ -87,18 +87,6 @@ const DELEGATION_AUTHREQ_KEY_PREFIX: &str = "bff:delegation_authreq:";
 /// Default TTL for cached delegation tokens (5 minutes).
 const DELEGATION_TOKEN_TTL: u64 = 300;
 
-/// Extract a cookie value from the Cookie header.
-fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie = headers.get("cookie")?.to_str().ok()?;
-    for part in cookie.split(';') {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix(&format!("{name}=")) {
-            return Some(val.to_string());
-        }
-    }
-    None
-}
-
 /// Request body for `POST /delegate/start`.
 #[derive(Debug, Deserialize)]
 pub struct DelegateStartRequest {
@@ -210,7 +198,7 @@ pub async fn delegate_start(
     // without a staff session is a plain decoupled-device self-approval.
     let mut act_sub: Option<String> = None;
     let mut act_email: Option<String> = None;
-    if let Some(sid) = extract_cookie(&headers, "bff-session") {
+    if let Some(sid) = crate::session::extract_session_id(&headers) {
         if let Ok(Some(sess)) = state.store.get(&sid).await {
             if !sess.user_id.is_empty() && sess.user_id != "anonymous" {
                 act_sub = Some(sess.user_id.clone());
@@ -384,7 +372,7 @@ pub async fn delegate_start(
     // result is pushed to the client over the SSE subscription stream (no
     // client-side polling needed). The client still falls back to POST
     // /delegate/poll if SSE is not connected.
-    if let Some(session_id) = extract_cookie(&headers, "bff-session") {
+    if let Some(session_id) = crate::session::extract_session_id(&headers) {
         crate::subscribe::start_delegation_poll(
             session_id,
             delegation_id.clone(),

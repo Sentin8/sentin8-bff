@@ -57,7 +57,6 @@ use serde::Deserialize;
 use tokio::sync::{broadcast, RwLock};
 
 use crate::handlers::AppState;
-use crate::session::SESSION_COOKIE;
 
 /// Query parameters for `GET /subscribe`.
 #[derive(Debug, Deserialize)]
@@ -109,8 +108,8 @@ pub async fn subscribe_handler(
     Query(query): Query<SubscribeQuery>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<SseEvent, axum::Error>>>, axum::http::StatusCode> {
-    // Extract the session cookie.
-    let session_id = match extract_cookie(&headers, SESSION_COOKIE) {
+    // Extract the session credential (cookie OR native bearer).
+    let session_id = match crate::session::extract_session_id(&headers) {
         Some(s) => s,
         None => return Err(axum::http::StatusCode::UNAUTHORIZED),
     };
@@ -330,16 +329,4 @@ pub async fn has_subscription(session_id: &str) -> bool {
     let map = sub_map();
     let map = map.read().await;
     map.contains_key(session_id)
-}
-
-/// Extract a cookie value from the Cookie header.
-fn extract_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    let cookie = headers.get("cookie")?.to_str().ok()?;
-    for part in cookie.split(';') {
-        let part = part.trim();
-        if let Some(val) = part.strip_prefix(&format!("{name}=")) {
-            return Some(val.to_string());
-        }
-    }
-    None
 }
