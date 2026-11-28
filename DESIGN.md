@@ -296,6 +296,25 @@ D2 on upgrade). The BFF emits the internal push types
 (`{vertical}:{service}:{resource}:{operation}`) through the per-service
 stream-family map.
 
+**Transport assignment for AI traffic.** The tier rule (principles §4.7a)
+decides where each AI interaction travels, and the BFF adds no AI logic of
+its own:
+
+| Interaction | Tier | Path |
+|---|---|---|
+| Agent turn, buffered | HTTP/2 mutation | `POST /proxy/ai/v1/conversations/{id}/turns` |
+| Agent turn token deltas | SSE subscription | `/subscribe` → family `ai`, event `sentin8:ai:turn:delta` |
+| Conversation history | HTTP/2 query | `GET /proxy/ai/v1/conversations/{id}/messages` |
+| Human-to-human chat | WebSocket | `GET /ws` (unchanged) |
+
+Two invariants follow. First, `GET /ws` is **not** the agent channel: it
+carries human chat frames and stays out of the AI request path, so a
+provider stall can never apply backpressure to a chat socket. Second, the
+BFF never talks to a model provider - every AI interaction is a proxy hop
+with the session's decrypted bearer, exactly like any other `/proxy/*`
+call, and token deltas arrive by subscribing to the Bus relay rather than
+by the BFF holding a provider connection.
+
 ### Event flow (consume path - the BFF produces no domain events)
 
 ```mermaid
@@ -462,9 +481,17 @@ graph LR
    caller's current session id; each destroyed record's encrypted
    refresh token is revoked at Auth so no orphaned live grant survives
    the store delete.
-9. **RLS on `bff.dcr_clients` is a current gap** (no ENABLE/FORCE policy in
-   `init.sql`); access is single-role server-side only, and the platform's
-   mandatory-RLS rule requires the policy to be added.
+10. **The BFF holds no AI authority and no provider connection.** Every AI
+    interaction is a `/proxy/ai/*` hop with the session's decrypted bearer;
+    token deltas arrive by Bus subscription (SSE), never by a provider
+    stream held open in the BFF. An agent run's tool execution happens
+    inside Sentin8:AI, so the BFF never sees or forwards a tool target.
+11. **`GET /ws` stays out of the AI request path.** It carries human chat
+    frames only; routing agent turns through it would let a provider stall
+    apply backpressure to interactive chat sockets.
+12. **RLS on `bff.dcr_clients` is a current gap** (no ENABLE/FORCE policy in
+    `init.sql`); access is single-role server-side only, and the platform's
+    mandatory-RLS rule requires the policy to be added.
 
 ## 9. Testing Strategy
 
@@ -488,6 +515,13 @@ graph TD
 
 ## 10. Open Questions
 
+- **Chat rooms are in-process only.** `chat/ws.rs` holds rooms in a
+  `static ROOMS` map of broadcast senders, so a conversation spanning two
+  BFF instances does not fan out, and nothing is persisted. The room model
+  is also membership-by-join rather than membership-from-a-store. Fixing it
+  means a durable conversation owner (Sentin8:AI for agent conversations;
+  a chat back-end for human chat) plus a Bus/SSE fan-out, and it must land
+  with the agent transport work rather than as a separate effort.
 - The telemetry fan-out task implements its consumer against
   `stat:rollups:minute` (Valkey pub/sub) instead of per-session Stat SSE -
   fewer connections, same data, reusing the existing subscribe spawn pattern.

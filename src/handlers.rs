@@ -104,7 +104,21 @@ pub async fn auth_login(
     // Check for a custom domain (e.g. www.ibank.local) - if set, use that
     // instead of the derived app hostname for the post-login redirect.
     let custom_domain_url = resolve_app_custom_domain(&state, &org_id, env_id, hostname).await;
-    let oauth_state = if !custom_domain_url.is_empty() {
+    // A native handoff's state is `native:<flow_id>` (native_session.rs) - it
+    // is a FLOW REFERENCE, not a redirect target, and the callback keys on
+    // exactly this prefix to branch into the handoff path. Substituting the
+    // app URL here (as the custom/frontend branches below do for browser
+    // flows) silently converts every native handoff into a browser login: the
+    // callback sees a plain URL, creates a session cookie, and redirects to
+    // the app - the device's flow record is never redeemed and the app times
+    // out waiting for a deep link that never comes.
+    //
+    // The browser-flow state (the post-login redirect target) still applies
+    // when the caller did not bring a native flow.
+    let is_native_flow = crate::native_session::parse_native_state(&q.state).is_some();
+    let oauth_state = if is_native_flow {
+        q.state.clone()
+    } else if !custom_domain_url.is_empty() {
         custom_domain_url
     } else if app_frontend_url.is_empty() {
         q.state.clone()
@@ -281,7 +295,20 @@ pub async fn auth_sign_up(
     // Check for a custom domain (e.g. www.ibank.local) - if set, use that
     // instead of the derived app hostname for the post-signup redirect.
     let custom_domain_url = resolve_app_custom_domain(&state, &org_id, env_id, hostname).await;
-    let oauth_state = if !custom_domain_url.is_empty() {
+    // A NATIVE flow must keep its own state: `native:<flow>` is what makes the
+    // callback mint a handoff instead of redirecting to the web frontend.
+    //
+    // Without this guard, sign-up overwrote the native state with the app's
+    // frontend URL. Auth echoed that URL back through the code exchange, the
+    // callback could no longer recognise a native flow, and it 302'd the DEVICE
+    // browser to the web app - so no handoff was ever minted and the native
+    // sign-in failed even though every request in the chain returned 200.
+    // `auth_login` already guards this; sign-up is the same flow with a
+    // different landing page.
+    let is_native_flow = crate::native_session::parse_native_state(&q.state).is_some();
+    let oauth_state = if is_native_flow {
+        q.state.clone()
+    } else if !custom_domain_url.is_empty() {
         custom_domain_url
     } else if app_frontend_url.is_empty() {
         q.state.clone()
